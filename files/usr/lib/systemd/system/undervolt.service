@@ -1,0 +1,12 @@
+[Unit]
+Description=Ryzen 5800X3D Undervolt (-30 CO)
+After=network.target multi-user.target
+
+[Service]
+Type=oneshot
+# System units run as root by default, which ryzenadj needs.
+ExecStart=/usr/bin/ryzenadj --set-coall=-30
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
