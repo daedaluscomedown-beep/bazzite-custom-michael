@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply PBO2 Tuner Undervolt (-30 All Cores)
+After=default.target
+
+[Service]
+Type=oneshot
+# Applies -30 offset to all cores for 5800X3D thermal headroom
+ExecStart=/usr/bin/ryzenadj --set-coall=-30
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target
