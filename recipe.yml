@@ -1,0 +1,36 @@
+name: bazzite-custom-michael
+description: "Golden Image for Michael's RX 9070 / 5800X3D Rig"
+base-image: ghcr.io/ublue-os/bazzite-kde
+image-version: stable
+
+modules:
+  # 1. Copy our custom config files, EDID, and Service Units
+  - type: files
+    files:
+      - usr: /usr
+      - etc: /etc
+
+  # 2. Install hardware tools & experimental desktop
+  - type: rpm-ostree
+    repos:
+      # COSMIC Desktop Repo
+      - https://copr.fedorainfracloud.org/coprs/kylegospo/cosmic-epoch/repo/fedora-$(rpm -E %fedora)-kylegospo-cosmic-epoch.repo
+    install:
+      - ryzenadj        # Undervolting Tool
+      - alsa-firmware   # G6 Audio Firmware
+      - lact            # GPU Tuning Tool
+      - cosmic-desktop  # Secondary Desktop Session
+
+  # 3. Core Apps (System-Wide Flatpaks)
+  - type: default-flatpaks
+    notify: true
+    system: true
+    install:
+      - com.google.Chrome      # Default Browser
+      - dev.vencord.Vesktop    # Discord (Optimized)
+
+  # 4. Apply Kernel Args & Tweaks
+  - type: script
+    scripts:
+      - kargs.sh
+      - tweaks.sh
