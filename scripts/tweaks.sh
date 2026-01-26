@@ -7,10 +7,14 @@ update-mime-database /usr/share/mime
 # 2. Enable the Undervolt Service for All Users
 systemctl --global enable undervolt.service
 
-# 3. FIX: NUCLEAR OPTION for Terra Repository
-# We are deleting the line that points to the missing key entirely.
-echo "Nuking broken Terra key reference..."
-find /etc/yum.repos.d/ -name "*.repo" -print0 | xargs -0 sed -i '/gpgkey=.*RPM-GPG-KEY-terra43-mesa/d'
+# 3. FIX: The "Dummy Key" Trick (Solves Curl Error 37)
+# The builder crashes because this file is missing. We will create it.
+echo "Creating dummy GPG key to satisfy dnf..."
+mkdir -p /etc/pki/rpm-gpg
+touch /etc/pki/rpm-gpg/RPM-GPG-KEY-terra43-mesa
 
-# 4. Double Tap: Force GPG Check OFF for that repo just in case
-find /etc/yum.repos.d/ -name "*.repo" -print0 | xargs -0 sed -i '/\[terra-mesa\]/,/^$/s/gpgcheck=1/gpgcheck=0/'
+# 4. Force GPG Check OFF for the Terra Repo
+# Now that the file exists, we tell the system to ignore that it's empty.
+# We check both /etc and /usr/etc to be safe.
+echo "Disabling GPG checks for terra-mesa..."
+find /etc/yum.repos.d/ /usr/etc/yum.repos.d/ -name "*.repo" 2>/dev/null | xargs sed -i '/\[terra-mesa\]/,/^$/s/gpgcheck=1/gpgcheck=0/'
