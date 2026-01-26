@@ -20,6 +20,7 @@ modules:
       - alsa-firmware   # G6 Audio Firmware
       - lact            # GPU Tuning Tool
       - cosmic-desktop  # Secondary Desktop Session
+      - terra-gpg-keys  # <--- THE FIX: Installs the missing security key
 
   # 3. Core Apps (System-Wide Flatpaks)
   - type: default-flatpaks
