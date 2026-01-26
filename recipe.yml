@@ -10,17 +10,13 @@ modules:
       - usr: /usr
       - etc: /etc
 
-  # 2. Install hardware tools & experimental desktop
+  # 2. Install hardware tools (COSMIC Removed)
   - type: rpm-ostree
-    repos:
-      # COSMIC Desktop Repo
-      - https://copr.fedorainfracloud.org/coprs/kylegospo/cosmic-epoch/repo/fedora-$(rpm -E %fedora)-kylegospo-cosmic-epoch.repo
     install:
       - ryzenadj        # Undervolting Tool
       - alsa-firmware   # G6 Audio Firmware
       - lact            # GPU Tuning Tool
-      - cosmic-desktop  # Secondary Desktop Session
-      - terra-gpg-keys  # <--- THE FIX: Installs the missing security key
+      - terra-gpg-keys  # We keep this so the key is ready for post-install
 
   # 3. Core Apps (System-Wide Flatpaks)
   - type: default-flatpaks
@@ -35,3 +31,4 @@ modules:
     scripts:
       - kargs.sh
       - tweaks.sh
+      - disable-terra.sh  # <--- CRITICAL: Ensures ISO build succeeds
