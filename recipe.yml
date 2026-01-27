@@ -30,3 +30,4 @@ modules:
     scripts:
       - kargs.sh
       - tweaks.sh
+      - disable-terra.sh  # <--- The Shield

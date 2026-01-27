@@ -1,5 +1,3 @@
 [[customizations.filesystem]]
 mountpoint = "/"
 minsize = "20 GiB"
-[dnf]
-disable_repos = ["terra-mesa"]
