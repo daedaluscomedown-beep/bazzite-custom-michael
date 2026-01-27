@@ -26,9 +26,9 @@ modules:
       - com.google.Chrome      # Default Browser
       - dev.vencord.Vesktop    # Discord (Optimized)
 
-  # 4. Apply Kernel Args & Tweaks
+# 4. Apply Kernel Args & Tweaks
   - type: script
     scripts:
       - kargs.sh
       - tweaks.sh
-      - fix-terra-keys.sh  # <--- THE GROUND TRUTH FIX
+      - fix-terra-bootc.sh  # <--- The Final Fix
