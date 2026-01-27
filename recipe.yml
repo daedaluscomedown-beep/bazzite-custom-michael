@@ -11,12 +11,12 @@ modules:
       - etc: /etc
 
   # 2. Install hardware tools (COSMIC Removed)
+  # We removed 'terra-gpg-keys' because our new script handles it manually/correctly.
   - type: rpm-ostree
     install:
       - ryzenadj        # Undervolting Tool
       - alsa-firmware   # G6 Audio Firmware
       - lact            # GPU Tuning Tool
-      - terra-gpg-keys  # We keep this so the key is ready for post-install
 
   # 3. Core Apps (System-Wide Flatpaks)
   - type: default-flatpaks
@@ -31,4 +31,4 @@ modules:
     scripts:
       - kargs.sh
       - tweaks.sh
-      - disable-terra.sh  # <--- CRITICAL: Ensures ISO build succeeds
+      - fix-terra-keys.sh  # <--- THE GROUND TRUTH FIX
