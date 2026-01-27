@@ -10,8 +10,7 @@ modules:
       - usr: /usr
       - etc: /etc
 
-  # 2. Install hardware tools (COSMIC Removed)
-  # We removed 'terra-gpg-keys' because our new script handles it manually/correctly.
+  # 2. Install hardware tools
   - type: rpm-ostree
     install:
       - ryzenadj        # Undervolting Tool
@@ -26,9 +25,8 @@ modules:
       - com.google.Chrome      # Default Browser
       - dev.vencord.Vesktop    # Discord (Optimized)
 
-# 4. Apply Kernel Args & Tweaks
+  # 4. Apply Kernel Args & Tweaks
   - type: script
     scripts:
       - kargs.sh
       - tweaks.sh
-      - fix-terra-bootc.sh  # <--- The Final Fix
