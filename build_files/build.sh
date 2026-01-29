@@ -2,22 +2,23 @@
 
 set -ouex pipefail
 
-echo "=== STARTING DECONFLICTION BUILD (v3) === "
+echo "=== STARTING DECONFLICTION BUILD (v4) === "
 
 # ==============================================================================
-# 1. ADD LACT REPO (The Missing Step!)
+# 1. ADD LACT REPO (Official Source: ilyaz)
 # ==============================================================================
 echo "Adding LACT Copr repository..."
 
-# We write the repo file directly to ensure it exists
+# We write the repo file directly to ensure it exists.
+# We use the official 'ilyaz' repo which is actively maintained.
 cat <<EOF > /etc/yum.repos.d/lact.repo
-[copr:copr.fedorainfracloud.org:igorszymanski:lact]
-name=Copr repo for lact owned by igorszymanski
-baseurl=https://download.copr.fedorainfracloud.org/results/igorszymanski/lact/fedora-\$releasever-\$basearch/
+[copr:copr.fedorainfracloud.org:ilyaz:LACT]
+name=Copr repo for LACT owned by ilyaz
+baseurl=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/fedora-\$releasever-\$basearch/
 type=rpm-md
 skip_if_unavailable=True
 gpgcheck=1
-gpgkey=https://download.copr.fedorainfracloud.org/results/igorszymanski/lact/pubkey.gpg
+gpgkey=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/pubkey.gpg
 repo_gpgcheck=0
 enabled=1
 enabled_metadata=1
