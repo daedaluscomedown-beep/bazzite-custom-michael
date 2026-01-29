@@ -1,0 +1,11 @@
+format = """
+[┌───────────────────>](bold green)
+[│](bold green)$directory$rust$package$git_branch
+[└─>](bold green) """
+
+[directory]
+truncation_length = 3
+truncation_symbol = "…/"
+
+[git_branch]
+symbol = " "
