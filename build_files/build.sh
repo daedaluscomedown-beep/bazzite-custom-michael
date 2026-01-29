@@ -2,65 +2,66 @@
 
 set -ouex pipefail
 
-echo "--- STARTING CUSTOM BUILD ---"
+echo "=== STARTING DECONFLICTION BUILD (v3) === "
 
 # ==============================================================================
-# 1. DISABLE TERRA REPOS (From disable-terra.sh)
+# 1. ADD LACT REPO (The Missing Step!)
 # ==============================================================================
-echo "--- Disabling Terra Repositories ---"
-# This prevents conflicts during the build process
-for repo_file in $(find /etc/yum.repos.d /usr/etc/yum.repos.d -name "*terra*.repo" 2>/dev/null); do
-    echo "Disabling repo: $repo_file"
-    sed -i 's/enabled=1/enabled=0/g' "$repo_file"
-done
+echo "Adding LACT Copr repository..."
+
+# We write the repo file directly to ensure it exists
+cat <<EOF > /etc/yum.repos.d/lact.repo
+[copr:copr.fedorainfracloud.org:igorszymanski:lact]
+name=Copr repo for lact owned by igorszymanski
+baseurl=https://download.copr.fedorainfracloud.org/results/igorszymanski/lact/fedora-\$releasever-\$basearch/
+type=rpm-md
+skip_if_unavailable=True
+gpgcheck=1
+gpgkey=https://download.copr.fedorainfracloud.org/results/igorszymanski/lact/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+enabled_metadata=1
+EOF
 
 # ==============================================================================
-# 2. INSTALL PACKAGES (From recipe.yml modules)
+# 2. INSTALL PACKAGES
 # ==============================================================================
-echo "--- Installing RPM Packages ---"
+echo "Installing packages..."
 
-# Define your packages
 PACKAGES=(
-    "ryzenadj"
-    "alsa-firmware"
-    "lact"
+    # --- System Tools ---
+    "tmux"
+    "htop"
+    "nvtop"
+    
+    # --- Hardware Optimization ---
+    "ryzenadj"       # CPU Undervolting
+    "alsa-firmware"  # Audio Fixes
+    "lact"           # GPU Control (System Service Version)
+    "corectrl"       # Alternative Control
+    
+    # --- Storage / RAID ---
+    "fio"
+    "mdadm"
+    "nvme-cli"
 )
 
-# Install them
+# Install everything
 rpm-ostree install "${PACKAGES[@]}"
 
 # ==============================================================================
-# 3. APPLY KERNEL ARGUMENTS (From kargs.sh)
+# 3. ENABLE SERVICES
 # ==============================================================================
-echo "--- Applying Kernel Arguments via Config File ---"
-
-# instead of running rpm-ostree kargs, we write a static config file.
-# This is the stable, "bootc" compliant way to do it.
-
-KARGS_FILE="/usr/lib/kernel/cmdline.d/99-michael-custom.conf"
-mkdir -p "$(dirname "$KARGS_FILE")"
-
-cat <<EOF > "$KARGS_FILE"
-# Michael's Custom Kargs
-split_lock_detect=off
-amdgpu.ppfeaturemask=0xffffffff
-drm.edid_firmware=DP-3:edid/samsung_g5_custom.bin
-video=DP-3:e
-EOF
-
-echo "Created $KARGS_FILE"
+echo "Enabling system services..."
+systemctl enable podman.socket
+systemctl enable lactd  # This ensures your GPU settings apply on boot!
 
 # ==============================================================================
-# 4. SYSTEM TWEAKS (From tweaks.sh)
+# 4. CLEANUP
 # ==============================================================================
-echo "--- Applying Final System Tweaks ---"
+# Disable Terra repos to prevent conflicts
+for repo_file in $(find /etc/yum.repos.d /usr/etc/yum.repos.d -name "*terra*.repo" 2>/dev/null); do
+    sed -i 's/enabled=1/enabled=0/g' "$repo_file"
+done
 
-# Ensure MIME database sees Chrome as default
-if [ -d "/usr/share/mime" ]; then
-    update-mime-database /usr/share/mime
-fi
-
-# Enable the Undervolt Service (Assumes unit file was copied via 'files/etc/systemd/system')
-systemctl --global enable undervolt.service
-
-echo "--- BUILD COMPLETE ---"
+echo "=== Build complete ==="
