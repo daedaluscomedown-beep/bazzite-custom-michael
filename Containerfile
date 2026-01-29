@@ -1,5 +1,5 @@
 # We use the base image defined in your recipe
-FROM ghcr.io/ublue-os/bazzite-kde:stable
+FROM ghcr.io/ublue-os/bazzite:stable
 
 # 1. Copy your custom files (overlays files/usr -> /usr, files/etc -> /etc)
 # This ensures your EDID firmware and undervolt service units are in place.
