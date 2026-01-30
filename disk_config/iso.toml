@@ -1,3 +1,10 @@
-[[customizations.filesystem]]
+[customizations.installer.kickstart]
+path = "hybrid-raid.ks"
+
+[customizations.filesystem]
 mountpoint = "/"
 minsize = "20 GiB"
+
+[customizations]
+# This ensures the ISO uses the same user/group settings as the container
+user = [{ name = "admin", groups = ["wheel"] }]

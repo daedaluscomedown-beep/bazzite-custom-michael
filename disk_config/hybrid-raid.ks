@@ -1,0 +1,67 @@
+# Hybrid RAID Kickstart for Deconfliction
+# RAID1 for /boot (Safety) | RAID0 for / (Speed)
+
+lang en_US.UTF-8
+keyboard us
+timezone America/New_York --utc
+network --bootproto=dhcp --device=link --activate
+rootpw --plaintext changeme
+
+# Clear all partitions
+zerombr
+clearpart --all --initlabel --disklabel=gpt
+
+# ============================================================================
+# HYBRID RAID SETUP (Adjust nvme0n1/nvme1n1 if your drives differ)
+# ============================================================================
+
+# EFI System Partition (First drive only)
+part /boot/efi --fstype=efi --size=512 --ondisk=nvme0n1
+
+# RAID1: /boot (Metadata Protection - 2GB)
+part raid.01 --size=2048 --ondisk=nvme0n1
+part raid.02 --size=2048 --ondisk=nvme1n1
+raid /boot --device=md0 --fstype=ext4 --level=1 raid.01 raid.02
+
+# RAID0: Physical Volumes for LVM (The Speed Zone)
+part raid.11 --size=1 --grow --ondisk=nvme0n1
+part raid.12 --size=1 --grow --ondisk=nvme1n1
+raid pv.01 --device=md1 --level=0 --chunk=512 raid.11 raid.12
+
+# Volume Group
+volgroup vg_deconfliction pv.01
+
+# Logical Volumes
+logvol / --fstype=ext4 --name=lv_root --vgname=vg_deconfliction --size=102400 --grow
+logvol swap --fstype=swap --name=lv_swap --vgname=vg_deconfliction --size=32768
+
+# Bootloader (Install on the first drive)
+bootloader --boot-drive=nvme0n1
+
+# ============================================================================
+# THE PAYLOAD
+# ============================================================================
+# This pulls your freshly built "Deconfliction" image
+bootc --source-imgref=ghcr.io/daedaluscomedown-beep/deconfliction:latest
+
+reboot
+
+# ============================================================================
+# POST-INSTALL TUNING
+# ============================================================================
+%post
+echo "Configuring RAID Optimizations..."
+
+# Set RAID0 read-ahead to 16MB for massive throughput
+echo 32768 > /sys/block/md1/md/stripe_cache_size
+blockdev --setra 16384 /dev/md1
+
+# Persist via Udev
+cat >> /etc/udev/rules.d/60-raid-tuning.rules << 'EOF'
+ACTION=="add|change", KERNEL=="md1", ATTR{md/stripe_cache_size}="32768"
+ACTION=="add|change", KERNEL=="md1", ATTR{queue/read_ahead_kb}="16384"
+EOF
+
+# Update Initramfs to lock in changes
+dracut --force
+%end
