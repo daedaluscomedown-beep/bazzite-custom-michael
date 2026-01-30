@@ -1,33 +1,22 @@
 #!/bin/bash
-# Script to auto-download the latest GE-Proton
+# Optimized for Bazzite / Flatpak Steam
+# This script ensures GE-Proton is managed via the Flatpak system
 
-STEAM_DIR="$HOME/.var/app/com.valvesoftware.Steam/data/Steam/compatibilitytools.d"
-API_URL="https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest"
+echo "🔍 Syncing Flathub Repository..."
+# Ensure the remote exists so the script never fails
+flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
-echo "🔍 Checking for latest GE-Proton..."
+echo "🎮 Updating GE-Proton (Flatpak)..."
+# This installs it if missing OR updates it if a new version is out
+flatpak install --user -y flathub com.valvesoftware.Steam.CompatibilityTool.Proton-GE
 
-# 1. Create directory if missing
-mkdir -p "$STEAM_DIR"
-
-# 2. Get the download URL for the .tar.gz file
-DOWNLOAD_URL=$(curl -s $API_URL | grep "browser_download_url" | grep ".tar.gz" | head -n 1 | cut -d '"' -f 4)
-FILENAME=$(basename "$DOWNLOAD_URL")
-FOLDER_NAME=$(echo "$FILENAME" | sed 's/.tar.gz//')
-
-# 3. Check if we already have it
-if [ -d "$STEAM_DIR/$FOLDER_NAME" ]; then
-    echo "✅ GE-Proton is already up to date: $FOLDER_NAME"
-    exit 0
+# --- CLEANUP OF OLD MANUAL INSTALLS ---
+# This removes the manual folders that weren't showing up, 
+# preventing them from cluttering your Steam menu.
+if [ -d "$HOME/.var/app/com.valvesoftware.Steam/data/Steam/compatibilitytools.d" ]; then
+    echo "🧹 Cleaning up old manual Proton folders..."
+    rm -rf "$HOME/.var/app/com.valvesoftware.Steam/data/Steam/compatibilitytools.d/GE-Proton"*
 fi
 
-# 4. Download and Install
-echo "⬇️  New version found: $FOLDER_NAME"
-echo "⬇️  Downloading..."
-curl -L -o "/tmp/$FILENAME" "$DOWNLOAD_URL"
-
-echo "📦 Extracting to Steam..."
-tar -xf "/tmp/$FILENAME" -C "$STEAM_DIR"
-
-# 5. Cleanup
-rm "/tmp/$FILENAME"
-echo "✨ Installed $FOLDER_NAME successfully!"
+echo "✨ GE-Proton is now managed by Flatpak!"
+echo "👉 Note: Restart Steam to see 'GE-Proton (Flatpak)' in your settings."
