@@ -1,10 +1,12 @@
 [customizations.installer.kickstart]
 path = "hybrid-raid.ks"
 
-[customizations.filesystem]
+# FIX: Double brackets [[ ]] make this a list item, which fixes the build error.
+[[customizations.filesystem]]
 mountpoint = "/"
 minsize = "20 GiB"
 
-[customizations]
-# This ensures the ISO uses the same user/group settings as the container
-user = [{ name = "admin", groups = ["wheel"] }]
+# FIX: It is cleaner to define users this way too
+[[customizations.user]]
+name = "admin"
+groups = ["wheel"]
