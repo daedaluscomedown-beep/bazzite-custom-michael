@@ -4,7 +4,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '05 10 * * *'  # 10:05am UTC everyday
+    - cron: '20 20 * * *'  # 8:20pm UTC everyday (Automatic Rebuild)
   push:
     branches:
       - main
