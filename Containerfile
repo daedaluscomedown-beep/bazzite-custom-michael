@@ -2,8 +2,13 @@
 FROM ghcr.io/ublue-os/bazzite:stable
 
 # 1. Copy your custom files (overlays files/usr -> /usr, files/etc -> /etc)
-# This ensures your EDID firmware and undervolt service units are in place.
 COPY files /
+
+# --- NEW SECTION STARTS HERE ---
+# Add GE-Proton Auto-Installer
+COPY scripts/install-ge-proton.sh /usr/bin/update-proton
+RUN chmod +x /usr/bin/update-proton
+# --- NEW SECTION ENDS HERE ---
 
 # 2. Copy your scripts so build.sh can run them
 COPY scripts /tmp/scripts
