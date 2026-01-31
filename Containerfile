@@ -35,11 +35,8 @@ RUN chmod +x /tmp/disable-terra.sh && \
 # -----------------------------------------------------------------------------
 # 3. SYSTEM TUNING (Sysctl)
 # -----------------------------------------------------------------------------
-RUN tee /etc/sysctl.d/99-gaming.conf << 'EOF'
-vm.swappiness=10
-vm.vfs_cache_pressure=50
-vm.max_map_count=1048576
-EOF
+# FIXED: Replaced 'heredoc' with printf to prevent buildah syntax errors
+RUN printf "vm.swappiness=10\nvm.vfs_cache_pressure=50\nvm.max_map_count=1048576\n" > /etc/sysctl.d/99-gaming.conf
 
 # -----------------------------------------------------------------------------
 # 4. INSTALL CUSTOM FILES (EDID)
