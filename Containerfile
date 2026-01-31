@@ -29,7 +29,7 @@ RUN chmod +x /tmp/disable-terra.sh && \
     rm /tmp/disable-terra.sh
 
 # -----------------------------------------------------------------------------
-# 3. SYSTEM TUNING (Sysctl) - "Safe" Echo Method
+# 3. SYSTEM TUNING (Safe Method)
 # -----------------------------------------------------------------------------
 RUN echo "vm.swappiness=10" > /etc/sysctl.d/99-gaming.conf && \
     echo "vm.vfs_cache_pressure=50" >> /etc/sysctl.d/99-gaming.conf && \
@@ -38,15 +38,14 @@ RUN echo "vm.swappiness=10" > /etc/sysctl.d/99-gaming.conf && \
 # -----------------------------------------------------------------------------
 # 4. INSTALL CUSTOM FILES (EDID)
 # -----------------------------------------------------------------------------
-# We bake the FILE in, but we apply the ARGUMENT in the post-install script
 COPY files/usr/lib/firmware/edid/samsung_g5_custom.bin /usr/lib/firmware/edid/samsung_g5_custom.bin
 
 # -----------------------------------------------------------------------------
-# 5. PACKAGES & SERVICES (LACT)
+# 5. PACKAGES (LACT)
 # -----------------------------------------------------------------------------
+# We install the package here, but enable the service in the post-install script
 RUN dnf copr enable -y ilyaz/LACT && \
-    rpm-ostree install lact && \
-    systemctl enable --global lactd.service
+    rpm-ostree install lact
 
 # -----------------------------------------------------------------------------
 # 6. RUNTIME SCRIPTS
@@ -55,7 +54,6 @@ COPY scripts/ /tmp/scripts/
 RUN chmod +x /tmp/scripts/* && \
     mv /tmp/scripts/install-ge-proton.sh /usr/bin/ && \
     mv /tmp/scripts/update-deconfliction.sh /usr/bin/ && \
-    mv /tmp/scripts/apply-kargs.sh /usr/bin/ && \
     rm -rf /tmp/scripts
 
 # -----------------------------------------------------------------------------
