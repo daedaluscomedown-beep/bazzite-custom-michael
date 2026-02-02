@@ -28,26 +28,22 @@ RUN echo "vm.swappiness=1" > /etc/sysctl.d/99-htpc.conf && \
     echo "net.core.default_qdisc=cake" >> /etc/sysctl.d/99-htpc.conf
 
 # -----------------------------------------------------------------------------
-# 3. HTPC PACKAGES (Living Room Suite)
+# 3. HTPC PACKAGES (Kodi + LACT)
 # -----------------------------------------------------------------------------
-# 1. Disable Terra (Conflict avoidance)
+# NOTE: Moonlight should be installed as a Flatpak after boot for stability.
+
 COPY scripts/disable-terra.sh /tmp/disable-terra.sh
 RUN chmod +x /tmp/disable-terra.sh && \
     /tmp/disable-terra.sh && \
     rm /tmp/disable-terra.sh
 
-# 2. Enable RPMFusion (Required for Kodi dependencies)
+# Enable RPMFusion for Kodi dependencies
 RUN dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
     https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
 
-# 3. Enable LACT (For RX 9070 Tuning)
-RUN dnf copr enable -y ilyaz/LACT
-
-# 4. Install Packages (Downloading Moonlight manually to bypass COPR 404)
-# We pull the latest Fedora 41/42 compatible RPM which works fine on 43.
-RUN curl -Lo /tmp/moonlight.rpm https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/moonlight-qt-6.1.0-1.fc41.x86_64.rpm && \
+# Enable LACT and Install Kodi
+RUN dnf copr enable -y ilyaz/LACT && \
     rpm-ostree install \
-    /tmp/moonlight.rpm \
     lact \
     kodi \
     kodi-inputstream-adaptive \
