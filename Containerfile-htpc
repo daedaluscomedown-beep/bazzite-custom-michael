@@ -12,7 +12,6 @@ FROM ghcr.io/${IMAGE_VENDOR}/${IMAGE_NAME}:${IMAGE_TAG}
 # -----------------------------------------------------------------------------
 # 1. GLOBAL PERFORMANCE (RX 9070 Tuned)
 # -----------------------------------------------------------------------------
-# We keep the exact same "God Mode" tunings because the hardware is identical.
 RUN echo 'AMD_VULKAN_ICD=radv' >> /etc/environment && \
     echo 'RADV_PERFTEST=gpl,sam,video_decode' >> /etc/environment && \
     echo 'ENABLE_LAYER_MESA_ANTI_LAG=1' >> /etc/environment && \
@@ -31,21 +30,25 @@ RUN echo "vm.swappiness=1" > /etc/sysctl.d/99-htpc.conf && \
 # -----------------------------------------------------------------------------
 # 3. HTPC PACKAGES (Living Room Suite)
 # -----------------------------------------------------------------------------
-# We must explicitly enable RPMFusion (for Kodi) and the Moonlight COPR
-# because we disabled Terra and they aren't in standard Fedora.
-
+# 1. Disable Terra (Conflict avoidance)
 COPY scripts/disable-terra.sh /tmp/disable-terra.sh
 RUN chmod +x /tmp/disable-terra.sh && \
     /tmp/disable-terra.sh && \
     rm /tmp/disable-terra.sh
 
+# 2. Enable RPMFusion (Required for Kodi dependencies)
 RUN dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
-    https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm && \
-    dnf copr enable -y guardium/moonlight && \
-    dnf copr enable -y ilyaz/LACT && \
+    https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+
+# 3. Enable LACT (For RX 9070 Tuning)
+RUN dnf copr enable -y ilyaz/LACT
+
+# 4. Install Packages (Downloading Moonlight manually to bypass COPR 404)
+# We pull the latest Fedora 41/42 compatible RPM which works fine on 43.
+RUN curl -Lo /tmp/moonlight.rpm https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/moonlight-qt-6.1.0-1.fc41.x86_64.rpm && \
     rpm-ostree install \
+    /tmp/moonlight.rpm \
     lact \
-    moonlight-qt \
     kodi \
     kodi-inputstream-adaptive \
     kodi-pvr-iptvsimple
