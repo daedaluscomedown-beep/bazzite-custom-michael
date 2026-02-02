@@ -17,7 +17,7 @@ env:
   IMAGE_KEYWORDS: "bootc,ublue,universal-blue"
   IMAGE_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"
   # NAME: "Deconfliction"
-  IMAGE_NAME: "deconfliction"
+  # IMAGE_NAME removed here to be set dynamically in the matrix
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
   DEFAULT_TAG: "latest"
 
@@ -30,6 +30,18 @@ jobs:
     name: Build and push image
     runs-on: ubuntu-24.04
 
+    # -------------------------------------------------------------------------
+    # MATRIX STRATEGY (Builds both Desktop and HTPC images)
+    # -------------------------------------------------------------------------
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image_name: deconfliction
+            containerfile: ./Containerfile
+          - image_name: deconfliction-htpc
+            containerfile: ./Containerfile-htpc
+
     permissions:
       contents: read
       packages: write
@@ -39,7 +51,8 @@ jobs:
       - name: Prepare environment
         run: |
           echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> ${GITHUB_ENV}
-          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> ${GITHUB_ENV}
+          # Set IMAGE_NAME dynamically from the matrix
+          echo "IMAGE_NAME=${{ matrix.image_name }}" >> ${GITHUB_ENV}
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -102,8 +115,9 @@ jobs:
         id: build_image
         uses: redhat-actions/buildah-build@v2
         with:
+          # Dynamic Containerfile from Matrix
           containerfiles: |
-            ./Containerfile
+            ${{ matrix.containerfile }}
           image: ${{ env.IMAGE_NAME }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
