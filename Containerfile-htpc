@@ -31,21 +31,24 @@ RUN echo "vm.swappiness=1" > /etc/sysctl.d/99-htpc.conf && \
 # -----------------------------------------------------------------------------
 # 3. HTPC PACKAGES (Living Room Suite)
 # -----------------------------------------------------------------------------
-# - Kodi: Media Center
-# - Moonlight: Streaming from Main PC
-# - LACT: Still needed for the 9070 Undervolt
+# We must explicitly enable RPMFusion (for Kodi) and the Moonlight COPR
+# because we disabled Terra and they aren't in standard Fedora.
+
 COPY scripts/disable-terra.sh /tmp/disable-terra.sh
 RUN chmod +x /tmp/disable-terra.sh && \
     /tmp/disable-terra.sh && \
     rm /tmp/disable-terra.sh
 
-RUN dnf copr enable -y ilyaz/LACT && \
+RUN dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
+    https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm && \
+    dnf copr enable -y guardium/moonlight && \
+    dnf copr enable -y ilyaz/LACT && \
     rpm-ostree install \
     lact \
+    moonlight-qt \
     kodi \
     kodi-inputstream-adaptive \
-    kodi-pvr-iptvsimple \
-    moonlight-qt
+    kodi-pvr-iptvsimple
 
 # -----------------------------------------------------------------------------
 # 4. GAMEMODE PRIORITY
