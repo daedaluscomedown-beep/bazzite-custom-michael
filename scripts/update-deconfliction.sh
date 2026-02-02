@@ -6,7 +6,7 @@ echo "🚀 Starting Deconfliction Maintenance..."
 echo "-----------------------------------"
 
 # 1. KARGS CHECK (Automation)
-# REMOVED: Monitor EDID overrides
+# Note: Monitor EDID overrides REMOVED for Razer Raptor support
 if ! grep -q "amd_pstate=active" /proc/cmdline; then
     echo "⚙️  Performance Tunables missing. Applying now..."
     rpm-ostree kargs \
@@ -27,8 +27,20 @@ else
     echo "✅ LACT Service is already active."
 fi
 
+# 2.5 STABILITY CHECK (Kill OOMD)
+# Prevents Fedora from killing games during RAM spikes.
+if systemctl is-enabled systemd-oomd &> /dev/null; then
+    echo "💀 Neutralizing Systemd-OOMD (Stability Fix)..."
+    systemctl disable --now systemd-oomd
+    systemctl mask systemd-oomd
+    echo "✅ Systemd-OOMD masked."
+else
+    echo "✅ Systemd-OOMD is already neutralized."
+fi
+
 # 3. GPU TUNING (The Formula 1 Tweak)
 LACT_CONFIG="/etc/lact/config.yaml"
+# Dynamic detection for PowerColor RX 9070
 GPU_ID=$(ls /sys/class/drm/ | grep "card[0-9]$" | xargs -I {} readlink -f /sys/class/drm/{} | awk -F'/' '{print $NF}' | grep -E "^[0-9a-f]{4}:" | head -n 1)
 
 if [ -z "$GPU_ID" ]; then
@@ -62,6 +74,7 @@ gpus:
         target_temp: 85
         zero_rpm: true
 EOF
+        # Restart required to apply the config we just wrote
         systemctl restart lactd.service
         echo "✅ Tuning Applied & Service Restarted."
     else
@@ -69,7 +82,12 @@ EOF
     fi
 fi
 
-# 4. Update Applications & System
+# 4. NextDNS Check (Reminder)
+if [ -f "/usr/bin/nextdns" ] && ! systemctl is-active nextdns &> /dev/null; then
+    echo "ℹ️  NextDNS binary is installed. Run 'sudo nextdns install' to configure if needed."
+fi
+
+# 5. Update Applications & System
 echo "📦 Updating Applications..."
 flatpak update -y
 
