@@ -1,3 +1,9 @@
+[customizations]
+hostname = "deconfliction-pc"
+
+[customizations.installer]
+unattended = false
+
 [customizations.installer.kickstart]
 contents = """
 # Hybrid RAID Kickstart for Deconfliction
@@ -6,17 +12,18 @@ keyboard us
 timezone America/New_York --utc
 network --bootproto=dhcp --device=link --activate
 
-# --- USER CONFIGURATION ---
-rootpw --plaintext changeme
-user --name=admin --groups=wheel --plaintext --password=changeme
+# ============================================================================
+# USER CONFIGURATION (Interactive)
+# ============================================================================
+# We removed 'rootpw' and 'user' commands here.
+# The installer will now STOP and ask you to create your user.
 
+# ============================================================================
+# PARTITIONING & RAID (Matches your verified setup)
+# ============================================================================
 # Clear all partitions
 zerombr
 clearpart --all --initlabel --disklabel=gpt
-
-# ============================================================================
-# HYBRID RAID SETUP
-# ============================================================================
 
 # EFI System Partition (First drive only)
 part /boot/efi --fstype=efi --size=512 --ondisk=nvme0n1
@@ -40,11 +47,6 @@ logvol swap --fstype=swap --name=lv_swap --vgname=vg_deconfliction --size=32768
 
 # Bootloader (Install on the first drive)
 bootloader --boot-drive=nvme0n1
-
-# ============================================================================
-# THE PAYLOAD (REMOVED - The builder injects this automatically!)
-# ============================================================================
-# bootc --source-imgref=ghcr.io/daedaluscomedown-beep/deconfliction:latest
 
 reboot
 
