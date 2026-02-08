@@ -1,64 +1,124 @@
-# -----------------------------------------------------------------------------
-# DECONFLICTION - HTPC EDITION (Console Mode)
-# Hardware: Ryzen 5800X3D + RX 9070
-# Base: Bazzite-Deck (Boots to Steam Game Mode)
-# Philosophy: Lean OS (Drivers Only) -> Apps via Flatpak
-# -----------------------------------------------------------------------------
-
 ARG IMAGE_NAME="bazzite-deck"
 ARG IMAGE_VENDOR="ublue-os"
 ARG IMAGE_TAG="stable"
 FROM ghcr.io/${IMAGE_VENDOR}/${IMAGE_NAME}:${IMAGE_TAG}
 
 # -----------------------------------------------------------------------------
-# 1. GLOBAL PERFORMANCE (RX 9070 Tuned)
+# 1. PLATINUM PERFORMANCE TUNING (/usr/etc/environment)
 # -----------------------------------------------------------------------------
-RUN echo 'AMD_VULKAN_ICD=radv' >> /etc/environment && \
-    echo 'RADV_PERFTEST=gpl,sam,video_decode' >> /etc/environment && \
-    echo 'ENABLE_LAYER_MESA_ANTI_LAG=1' >> /etc/environment && \
-    echo 'VKD3D_CONFIG=no_upload_hvv' >> /etc/environment && \
-    echo 'MESA_SHADER_CACHE_MAX_SIZE=20G' >> /etc/environment && \
-    echo 'MESA_SHADER_CACHE_SINGLE_FILE=1' >> /etc/environment
+RUN mkdir -p /usr/etc && \
+    cat <<'EOF' >> /usr/etc/environment
+# --- AMD GPU & RADV Tuning (RX 9070) ---
+AMD_VULKAN_ICD=radv
+RADV_PERFTEST=gpl,sam,video_decode,nggc,rt
+RADV_RT_PIPELINE_CACHE=1
+ENABLE_LAYER_MESA_ANTI_LAG=1
+VKD3D_CONFIG=no_upload_hvv
+
+# --- Steam & Proton Tuning ---
+PROTON_USE_NTSYNC=1
+# Auto-scaling is critical for HTPC/TVs to prevent UI blur
+STEAM_FORCE_DESKTOPUI_SCALING=auto
+
+# --- Mesa Cache (Persistent & Semantically Correct) ---
+MESA_SHADER_CACHE_MAX_SIZE=20G
+MESA_SHADER_CACHE_DIR=/var/lib/mesa
+MESA_SHADER_CACHE_SINGLE_FILE=1
+EOF
+
+# Ensure the cache directory exists
+RUN mkdir -p /var/lib/mesa && chmod 1777 /var/lib/mesa
 
 # -----------------------------------------------------------------------------
-# 2. SYSTEM TUNING (Network & CPU)
+# 2. SYSCTL TUNING (Latency & Safety)
 # -----------------------------------------------------------------------------
-RUN echo "vm.swappiness=1" > /etc/sysctl.d/99-htpc.conf && \
-    echo "vm.max_map_count=1048576" >> /etc/sysctl.d/99-htpc.conf && \
-    echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.d/99-htpc.conf && \
-    echo "net.core.default_qdisc=cake" >> /etc/sysctl.d/99-htpc.conf
+RUN mkdir -p /usr/lib/sysctl.d && \
+    cat <<EOF > /usr/lib/sysctl.d/99-htpc.conf
+vm.swappiness=1
+vm.vfs_cache_pressure=50
+# Lowered to 256k (Safe for Proton, avoids memory waste)
+vm.max_map_count=262144
+net.ipv4.tcp_congestion_control=bbr
+net.core.default_qdisc=cake
+EOF
 
 # -----------------------------------------------------------------------------
-# 3. HTPC DRIVERS (LACT Only)
+# 3. GAMEMODE PRIORITY
 # -----------------------------------------------------------------------------
-COPY scripts/disable-terra.sh /tmp/disable-terra.sh
-RUN chmod +x /tmp/disable-terra.sh && \
-    /tmp/disable-terra.sh && \
-    rm /tmp/disable-terra.sh
-
-# Install LACT (Critical for GPU Tuning)
-RUN dnf copr enable -y ilyaz/LACT && \
-    rpm-ostree install lact
+RUN mkdir -p /usr/share/gamemode && \
+    cat <<EOF > /usr/share/gamemode/gamemode.ini
+[general]
+renice=10
+ioprio=0
+EOF
 
 # -----------------------------------------------------------------------------
-# 4. GAMEMODE PRIORITY
+# 4. PACKAGE INSTALLATION (Atomic Method)
 # -----------------------------------------------------------------------------
-RUN mkdir -p /etc/gamemode.ini.d && \
-    echo "[general]" > /etc/gamemode.ini && \
-    echo "renice=10" >> /etc/gamemode.ini
+
+# A. LACT Repo (Manual fetch for OSTree compatibility)
+RUN curl -fsSL https://copr.fedorainfracloud.org/coprs/ilyaz/LACT/repo/fedora-$(rpm -E %fedora)/ilyaz-LACT.repo \
+    -o /etc/yum.repos.d/ilyaz-LACT.repo
+
+# B. Install Packages (LACT + HTPC Essentials)
+RUN rpm-ostree install \
+    lact \
+    mangohud \
+    goverlay \
+    distribution-gpg-keys \
+    && rm -rf /var/cache/rpms
+
+# C. Enable LACT Service (Immutable Symlink Method)
+RUN ln -s /usr/lib/systemd/system/lactd.service \
+    /usr/lib/systemd/system/multi-user.target.wants/lactd.service
 
 # -----------------------------------------------------------------------------
-# 5. SCRIPTS & NEXTDNS
+# 5. NEXTDNS (Hardened Service)
+# NOTE: Updates via image rebuilds.
 # -----------------------------------------------------------------------------
-RUN curl -Lo /tmp/nextdns.tar.gz https://github.com/nextdns/nextdns/releases/download/v1.43.5/nextdns_1.43.5_linux_amd64.tar.gz && \
-    tar -xzf /tmp/nextdns.tar.gz -C /usr/bin nextdns && \
-    chmod +x /usr/bin/nextdns && \
-    rm /tmp/nextdns.tar.gz
+# Fetch Latest Binary
+RUN curl -fsSL "https://github.com/nextdns/nextdns/releases/latest/download/nextdns_linux_amd64" -o /usr/bin/nextdns && \
+    chmod +x /usr/bin/nextdns
 
-COPY scripts/ /tmp/scripts/
-RUN chmod +x /tmp/scripts/* && \
-    mv /tmp/scripts/install-ge-proton.sh /usr/bin/ && \
-    mv /tmp/scripts/update-deconfliction.sh /usr/bin/ && \
-    rm -rf /tmp/scripts
+# Config
+RUN mkdir -p /etc/nextdns && \
+    cat <<EOF > /etc/nextdns/config
+auto-activate true
+cache-size 10MB
+timeout 5s
+EOF
 
+# Service (Hardened)
+RUN cat <<EOF > /etc/systemd/system/nextdns.service
+[Unit]
+Description=NextDNS DNS53 to DoH proxy
+ConditionFileNotEmpty=/etc/nextdns/config
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/nextdns run
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable NextDNS
+RUN ln -s /etc/systemd/system/nextdns.service \
+    /etc/systemd/system/multi-user.target.wants/nextdns.service
+
+# -----------------------------------------------------------------------------
+# 6. PROTON-GE (System-Wide Pre-Install)
+# -----------------------------------------------------------------------------
+COPY scripts/install-ge-proton.sh /tmp/install-ge-proton.sh
+RUN chmod +x /tmp/install-ge-proton.sh && \
+    /tmp/install-ge-proton.sh && \
+    rm /tmp/install-ge-proton.sh
+
+# -----------------------------------------------------------------------------
+# 7. CLEANUP
+# -----------------------------------------------------------------------------
+RUN rm -rf /var/cache/rpms /var/cache/dnf
 RUN echo "✅ Deconfliction HTPC Build Complete."
