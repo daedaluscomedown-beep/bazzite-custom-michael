@@ -1,5 +1,7 @@
-# Hybrid RAID Kickstart for Deconfliction
-# RAID1 for /boot (Safety) | RAID0 for / (Speed)
+# ============================================================================
+# BAZZITE BTRFS FOUNDATION (Single Drive Start)
+# We install to Drive 1 (nvme0n1) only. Drive 2 is added post-boot.
+# ============================================================================
 
 lang en_US.UTF-8
 keyboard us
@@ -7,61 +9,45 @@ timezone America/New_York --utc
 network --bootproto=dhcp --device=link --activate
 rootpw --plaintext changeme
 
-# Clear all partitions
+# 1. Initialize the First Drive (Wipes nvme0n1 only)
 zerombr
-clearpart --all --initlabel --disklabel=gpt
+clearpart --all --initlabel --drives=nvme0n1
 
 # ============================================================================
-# HYBRID RAID SETUP (Adjust nvme0n1/nvme1n1 if your drives differ)
+# PARTITIONING (Standard Fedora Atomic Layout)
 # ============================================================================
 
-# EFI System Partition (First drive only)
-part /boot/efi --fstype=efi --size=512 --ondisk=nvme0n1
+# Boot Loaders (Required for UEFI/BIOS)
+part /boot/efi --fstype=efi --size=600 --ondisk=nvme0n1
+part /boot     --fstype=ext4 --size=1024 --ondisk=nvme0n1
 
-# RAID1: /boot (Metadata Protection - 2GB)
-part raid.01 --size=2048 --ondisk=nvme0n1
-part raid.02 --size=2048 --ondisk=nvme1n1
-raid /boot --device=md0 --fstype=ext4 --level=1 raid.01 raid.02
+# The BTRFS Pool (Takes all remaining space on Drive 1)
+# Note: We do NOT touch nvme1n1 here. The setup script handles that later.
+part btrfs.01 --fstype=btrfs --size=1 --grow --ondisk=nvme0n1
 
-# RAID0: Physical Volumes for LVM (The Speed Zone)
-part raid.11 --size=1 --grow --ondisk=nvme0n1
-part raid.12 --size=1 --grow --ondisk=nvme1n1
-raid pv.01 --device=md1 --level=0 --chunk=512 raid.11 raid.12
-
-# Volume Group
-volgroup vg_deconfliction pv.01
-
-# Logical Volumes
-logvol / --fstype=ext4 --name=lv_root --vgname=vg_deconfliction --size=102400 --grow
-logvol swap --fstype=swap --name=lv_swap --vgname=vg_deconfliction --size=32768
+# Atomic Subvolumes (Critical for Bazzite/Silverblue)
+# These map the BTRFS subvolumes to the OS structure.
+btrfs /     --subvol --name=root btrfs.01
+btrfs /home --subvol --name=home btrfs.01
+btrfs /var  --subvol --name=var  btrfs.01
 
 # Bootloader (Install on the first drive)
-bootloader --boot-drive=nvme0n1
+bootloader --location=mbr --boot-drive=nvme0n1
 
 # ============================================================================
 # THE PAYLOAD
 # ============================================================================
-# This pulls your freshly built "Deconfliction" image
+# Pulls your custom image
 bootc --source-imgref=ghcr.io/daedaluscomedown-beep/deconfliction:latest
 
 reboot
 
 # ============================================================================
-# POST-INSTALL TUNING
+# POST-INSTALL
 # ============================================================================
 %post
-echo "Configuring RAID Optimizations..."
-
-# Set RAID0 read-ahead to 16MB for massive throughput
-echo 32768 > /sys/block/md1/md/stripe_cache_size
-blockdev --setra 16384 /dev/md1
-
-# Persist via Udev
-cat >> /etc/udev/rules.d/60-raid-tuning.rules << 'EOF'
-ACTION=="add|change", KERNEL=="md1", ATTR{md/stripe_cache_size}="32768"
-ACTION=="add|change", KERNEL=="md1", ATTR{queue/read_ahead_kb}="16384"
-EOF
-
-# Update Initramfs to lock in changes
-dracut --force
+# No RAID tuning needed here yet.
+# The 'setup-storage.sh' script in the image will handle
+# adding the second drive and balancing the RAID on first boot.
+echo "BTRFS Foundation Installed. Ready for Phase 2."
 %end
