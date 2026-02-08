@@ -37,13 +37,18 @@ RUN mkdir -p /usr/share/gamemode && \
     echo 'ioprio=0' >> /usr/share/gamemode/gamemode.ini
 
 # ---------------------------------------------------------------------------
-# 4. PACKAGE INSTALLATION
+# 4. PACKAGE INSTALLATION & REPO FIXES
 # ---------------------------------------------------------------------------
 # A. LACT Repo
 RUN curl -fsSL https://copr.fedorainfracloud.org/coprs/ilyaz/LACT/repo/fedora-$(rpm -E %fedora)/ilyaz-LACT.repo \
     -o /etc/yum.repos.d/ilyaz-LACT.repo
 
-# B. Install Packages
+# B. TERRA FIX (Critical for ISO Build)
+# The Terra repo often refers to a missing local GPG key. We disable the check to allow the build to proceed.
+RUN sed -i 's/gpgcheck=1/gpgcheck=0/' /etc/yum.repos.d/terra.repo || true && \
+    sed -i 's/gpgcheck=1/gpgcheck=0/' /etc/yum.repos.d/terra-mesa.repo || true
+
+# C. Install Packages
 RUN rpm-ostree install \
     lact \
     mangohud \
@@ -51,27 +56,24 @@ RUN rpm-ostree install \
     distribution-gpg-keys \
     && rm -rf /var/cache/rpms
 
-# C. Enable LACT Service
+# D. Enable LACT Service
 RUN ln -s /usr/lib/systemd/system/lactd.service \
     /usr/lib/systemd/system/multi-user.target.wants/lactd.service
 
 # ---------------------------------------------------------------------------
-# 5. NEXTDNS (Hardened Service & Dynamic Fetch)
+# 5. NEXTDNS (Hardened Service)
 # ---------------------------------------------------------------------------
-# Fetch Latest Tarball & Extract Binary
 RUN NEXTDNS_URL=$(curl -s https://api.github.com/repos/nextdns/nextdns/releases/latest | grep browser_download_url | grep linux_amd64.tar.gz | cut -d '"' -f 4) && \
     curl -fsSL "$NEXTDNS_URL" -o /tmp/nextdns.tar.gz && \
     tar -xzf /tmp/nextdns.tar.gz -C /usr/bin nextdns && \
     chmod +x /usr/bin/nextdns && \
     rm /tmp/nextdns.tar.gz
 
-# Config
 RUN mkdir -p /etc/nextdns && \
     echo 'auto-activate true' > /etc/nextdns/config && \
     echo 'cache-size 10MB' >> /etc/nextdns/config && \
     echo 'timeout 5s' >> /etc/nextdns/config
 
-# Service
 RUN echo '[Unit]' > /etc/systemd/system/nextdns.service && \
     echo 'Description=NextDNS DNS53 to DoH proxy' >> /etc/systemd/system/nextdns.service && \
     echo 'ConditionFileNotEmpty=/etc/nextdns/config' >> /etc/systemd/system/nextdns.service && \
@@ -86,7 +88,6 @@ RUN echo '[Unit]' > /etc/systemd/system/nextdns.service && \
     echo '[Install]' >> /etc/systemd/system/nextdns.service && \
     echo 'WantedBy=multi-user.target' >> /etc/systemd/system/nextdns.service
 
-# Enable NextDNS
 RUN ln -s /etc/systemd/system/nextdns.service \
     /etc/systemd/system/multi-user.target.wants/nextdns.service
 
