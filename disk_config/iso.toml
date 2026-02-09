@@ -2,7 +2,7 @@
 hostname = "deconfliction-pc"
 
 [customizations.installer]
-unattended = true
+# REMOVED: unattended = true (Conflict)
 
 [customizations.installer.kickstart]
 contents = """
