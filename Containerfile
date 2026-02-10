@@ -3,6 +3,7 @@ FROM ghcr.io/ublue-os/bazzite:stable
 # ---------------------------------------------------------------------------
 # 1. GOLD MASTER PERFORMANCE TUNING (Systemd Environment)
 # ---------------------------------------------------------------------------
+# We use /etc/environment.d for proper session integration
 RUN mkdir -p /etc/environment.d && \
     echo 'AMD_VULKAN_ICD=radv' > /etc/environment.d/90-gaming.conf && \
     echo 'RADV_DEBUG=aco' >> /etc/environment.d/90-gaming.conf && \
@@ -44,7 +45,7 @@ RUN mkdir -p /usr/lib/sysctl.d && \
 
 RUN echo sch_cake > /etc/modules-load.d/cake.conf
 
-# B. NVMe Scheduler (Regex match for all NVMe drives)
+# B. NVMe Scheduler (Force 'none' for shader stability)
 RUN echo 'ACTION=="add|change", KERNEL=="nvme[0-9]*", ATTR{queue/scheduler}="none"' > /etc/udev/rules.d/60-nvme-scheduler.rules
 
 # C. ZRAM Optimization (Max 8GB)
@@ -54,16 +55,18 @@ RUN echo '[zram0]' > /etc/systemd/zram-generator.conf && \
     echo 'swap-priority = 100' >> /etc/systemd/zram-generator.conf
 
 # ---------------------------------------------------------------------------
-# 3. PACKAGES & REPOS (FIXED)
+# 3. PACKAGES & REPOS (NETWORK HARDENED)
 # ---------------------------------------------------------------------------
 # Add LACT Repo
 RUN curl -fsSL https://copr.fedorainfracloud.org/coprs/ilyaz/LACT/repo/fedora-$(rpm -E %fedora)/ilyaz-LACT.repo \
     -o /etc/yum.repos.d/ilyaz-LACT.repo
 
-# DISABLE TERRA (Fixes 404 build errors - Critical Fix)
+# DISABLE FLAKY REPOS (Terra + Fedora Archives)
+# We disable updates-archive because it is currently down/timing out
 RUN sed -i 's/enabled=1/enabled=0/' /etc/yum.repos.d/terra.repo || true && \
     sed -i 's/enabled=1/enabled=0/' /etc/yum.repos.d/terra-mesa.repo || true && \
-    sed -i 's/enabled=1/enabled=0/' /etc/yum.repos.d/terra-extras.repo || true
+    sed -i 's/enabled=1/enabled=0/' /etc/yum.repos.d/terra-extras.repo || true && \
+    sed -i 's/enabled=1/enabled=0/' /etc/yum.repos.d/fedora-updates-archive.repo || true
 
 # INSTALL PACKAGES
 RUN rpm-ostree install \
@@ -78,7 +81,7 @@ RUN curl -fsSL "https://raw.githubusercontent.com/HikariKnight/ScopeBuddy/main/b
     ln -sf /usr/bin/scopebuddy /usr/bin/scb
 
 # ---------------------------------------------------------------------------
-# 4. LACT HARDENING & CONFIGURATION
+# 4. LACT HARDENING & POWER MANAGEMENT
 # ---------------------------------------------------------------------------
 # Disable power-profiles-daemon so LACT can rule
 RUN systemctl mask power-profiles-daemon.service
@@ -91,7 +94,7 @@ RUN mkdir -p /etc/systemd/system/lactd.service.d && \
 
 # Dynamic Config Script with Fan Curve
 RUN echo '#!/bin/bash' > /usr/bin/setup-lact.sh && \
-    echo 'CARD=$(ls /sys/class/drm | grep "^card[0-9]$" | head -n1)' >> /usr/bin/setup-lact.sh && \
+    echo 'CARD=$(ls /sys/class/drm | grep "^card[0-9]$" | sort | head -n1)' >> /usr/bin/setup-lact.sh && \
     echo '[ -z "$CARD" ] && exit 0' >> /usr/bin/setup-lact.sh && \
     echo 'mkdir -p /etc/lact' >> /usr/bin/setup-lact.sh && \
     echo 'cat > /etc/lact/config.yaml <<EOF' >> /usr/bin/setup-lact.sh && \
