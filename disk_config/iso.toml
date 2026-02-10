@@ -31,8 +31,8 @@ btrfs /home --subvol --name=home btrfs.01
 btrfs /var  --subvol --name=var  btrfs.01
 
 # 4. Bootloader (UEFI Mode)
-# FIXED: Changed 'None' to 'none' (Lowercase is required)
-bootloader --location=none --efi --boot-drive=nvme0n1
+# FIX APPLIED: Removed '--efi' and changed 'None' to 'none'
+bootloader --location=none --boot-drive=nvme0n1
 
 reboot
 
