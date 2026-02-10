@@ -9,9 +9,9 @@ FROM ghcr.io/${IMAGE_VENDOR}/${IMAGE_NAME}:${IMAGE_TAG}
 # We use /etc/environment.d for proper session integration
 RUN mkdir -p /etc/environment.d && \
     echo 'AMD_VULKAN_ICD=radv' > /etc/environment.d/90-gaming.conf && \
-    echo 'RADV_PERFTEST=gpl,sam,video_decode,nggc,rt' >> /etc/environment.d/90-gaming.conf && \
+    echo 'RADV_DEBUG=aco' >> /etc/environment.d/90-gaming.conf && \
+    echo 'RADV_PERFTEST=gpl,sam,video_decode,nggc,rt,antilag2' >> /etc/environment.d/90-gaming.conf && \
     echo 'RADV_RT_PIPELINE_CACHE=1' >> /etc/environment.d/90-gaming.conf && \
-    echo 'ENABLE_LAYER_MESA_ANTI_LAG=1' >> /etc/environment.d/90-gaming.conf && \
     echo 'VKD3D_CONFIG=no_upload_hvv' >> /etc/environment.d/90-gaming.conf && \
     echo 'PROTON_USE_NTSYNC=1' >> /etc/environment.d/90-gaming.conf && \
     echo 'PROTON_NO_WGI=1' >> /etc/environment.d/90-gaming.conf && \

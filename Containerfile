@@ -1,14 +1,14 @@
 FROM ghcr.io/ublue-os/bazzite:stable
 
 # ---------------------------------------------------------------------------
-# 1. PLATINUM PERFORMANCE TUNING (Systemd Environment)
+# 1. GOLD MASTER PERFORMANCE TUNING (Systemd Environment)
 # ---------------------------------------------------------------------------
-# We use /etc/environment.d for proper session integration (No 'export' needed here)
+# We use /etc/environment.d for proper session integration
 RUN mkdir -p /etc/environment.d && \
     echo 'AMD_VULKAN_ICD=radv' > /etc/environment.d/90-gaming.conf && \
-    echo 'RADV_PERFTEST=gpl,sam,video_decode,nggc,rt' >> /etc/environment.d/90-gaming.conf && \
+    echo 'RADV_DEBUG=aco' >> /etc/environment.d/90-gaming.conf && \
+    echo 'RADV_PERFTEST=gpl,sam,video_decode,nggc,rt,antilag2' >> /etc/environment.d/90-gaming.conf && \
     echo 'RADV_RT_PIPELINE_CACHE=1' >> /etc/environment.d/90-gaming.conf && \
-    echo 'ENABLE_LAYER_MESA_ANTI_LAG=1' >> /etc/environment.d/90-gaming.conf && \
     echo 'VKD3D_CONFIG=no_upload_hvv' >> /etc/environment.d/90-gaming.conf && \
     echo 'PROTON_USE_NTSYNC=1' >> /etc/environment.d/90-gaming.conf && \
     echo 'PROTON_NO_WGI=1' >> /etc/environment.d/90-gaming.conf && \
