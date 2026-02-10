@@ -2,7 +2,7 @@
 hostname = "deconfliction-pc"
 
 [customizations.installer]
-# REMOVED: unattended = true (Conflict)
+# We removed the 'unattended' key because it conflicts with custom kickstarts.
 
 [customizations.installer.kickstart]
 contents = """
