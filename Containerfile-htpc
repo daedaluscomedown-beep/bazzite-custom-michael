@@ -6,7 +6,6 @@ FROM ghcr.io/${IMAGE_VENDOR}/${IMAGE_NAME}:${IMAGE_TAG}
 # ---------------------------------------------------------------------------
 # 1. GOLD MASTER PERFORMANCE TUNING (Systemd Environment)
 # ---------------------------------------------------------------------------
-# We use /etc/environment.d for proper session integration
 RUN mkdir -p /etc/environment.d && \
     echo 'AMD_VULKAN_ICD=radv' > /etc/environment.d/90-gaming.conf && \
     echo 'RADV_DEBUG=aco' >> /etc/environment.d/90-gaming.conf && \
@@ -68,20 +67,22 @@ RUN echo '[Unit]' > /etc/systemd/system/cpu-performance.service && \
 RUN systemctl enable cpu-performance.service
 
 # ---------------------------------------------------------------------------
-# 3. PACKAGES & REPOS
+# 3. PACKAGES & REPOS (FIXED)
 # ---------------------------------------------------------------------------
+# Add LACT Repo
 RUN curl -fsSL https://copr.fedorainfracloud.org/coprs/ilyaz/LACT/repo/fedora-$(rpm -E %fedora)/ilyaz-LACT.repo \
     -o /etc/yum.repos.d/ilyaz-LACT.repo
 
-RUN sed -i 's/gpgcheck=1/gpgcheck=0/' /etc/yum.repos.d/terra.repo || true && \
-    sed -i 's/gpgcheck=1/gpgcheck=0/' /etc/yum.repos.d/terra-mesa.repo || true
+# DISABLE TERRA (Fixes 404 build errors)
+RUN sed -i 's/enabled=1/enabled=0/' /etc/yum.repos.d/terra.repo || true && \
+    sed -i 's/enabled=1/enabled=0/' /etc/yum.repos.d/terra-mesa.repo || true
 
+# INSTALL PACKAGES
+# Removed: mangohud, goverlay (Built-in to Bazzite)
+# Removed: protonup-qt (Install as Flatpak post-boot)
+# Removed: distribution-gpg-keys (Built-in)
 RUN rpm-ostree install \
     lact \
-    mangohud \
-    goverlay \
-    distribution-gpg-keys \
-    protonup-qt \
     && rm -rf /var/cache/rpms
 
 # SCOPEBUDDY
@@ -134,7 +135,7 @@ RUN systemctl enable lactd.service && \
     systemctl enable lact-setup.service
 
 # ---------------------------------------------------------------------------
-# 5. NEXTDNS & PROTON-GE
+# 5. NEXTDNS
 # ---------------------------------------------------------------------------
 RUN NEXTDNS_URL=$(curl -s https://api.github.com/repos/nextdns/nextdns/releases/latest | grep browser_download_url | grep linux_amd64.tar.gz | cut -d '"' -f 4) && \
     curl -fsSL "$NEXTDNS_URL" -o /tmp/nextdns.tar.gz && \
@@ -162,11 +163,6 @@ RUN echo '[Unit]' > /etc/systemd/system/nextdns.service && \
     echo 'WantedBy=multi-user.target' >> /etc/systemd/system/nextdns.service
 
 RUN systemctl enable nextdns.service
-
-COPY scripts/install-ge-proton.sh /tmp/install-ge-proton.sh
-RUN chmod +x /tmp/install-ge-proton.sh && \
-    /tmp/install-ge-proton.sh && \
-    rm /tmp/install-ge-proton.sh
 
 # ---------------------------------------------------------------------------
 # 6. CLEANUP

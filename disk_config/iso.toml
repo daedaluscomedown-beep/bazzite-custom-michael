@@ -31,11 +31,9 @@ btrfs /home --subvol --name=home btrfs.01
 btrfs /var  --subvol --name=var  btrfs.01
 
 # 4. Bootloader (UEFI Mode + Appliance Performance Args)
-# - amd_pstate=active: Critical for 5800X3D frequency stability
-# - transparent_hugepage=madvise: Prevents cache thrashing
-# - mitigations=off: Max performance (Gaming Appliance Mode)
-# - nowatchdog: Removes interrupt latency
-# - nvme.noacpi=1: Fixes power state stalls on some NVMe drives
+# FIXES APPLIED:
+# - Changed 'None' to 'none' (lowercase)
+# - Removed '--efi' (invalid flag)
 bootloader --location=none --boot-drive=nvme0n1 --append="amd_pstate=active transparent_hugepage=madvise mitigations=off nowatchdog nvme.noacpi=1"
 
 reboot
