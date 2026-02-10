@@ -3,7 +3,6 @@ FROM ghcr.io/ublue-os/bazzite:stable
 # ---------------------------------------------------------------------------
 # 1. PLATINUM PERFORMANCE TUNING (Atomic-Safe Profile)
 # ---------------------------------------------------------------------------
-# We use /etc/profile.d to ensure these apply to all user sessions reliably.
 RUN mkdir -p /etc/profile.d && \
     echo 'export AMD_VULKAN_ICD=radv' > /etc/profile.d/gaming.sh && \
     echo 'export RADV_PERFTEST=gpl,sam,video_decode,nggc,rt' >> /etc/profile.d/gaming.sh && \
@@ -13,10 +12,8 @@ RUN mkdir -p /etc/profile.d && \
     echo 'export PROTON_USE_NTSYNC=1' >> /etc/profile.d/gaming.sh && \
     echo 'export STEAM_FORCE_DESKTOPUI_SCALING=auto' >> /etc/profile.d/gaming.sh && \
     echo 'export MESA_SHADER_CACHE_MAX_SIZE=20G' >> /etc/profile.d/gaming.sh && \
-    # Updated: Per-User Cache Directory for safety
     echo 'export MESA_SHADER_CACHE_DIR=/var/lib/mesa/\$UID' >> /etc/profile.d/gaming.sh && \
     echo 'export MESA_SHADER_CACHE_SINGLE_FILE=1' >> /etc/profile.d/gaming.sh && \
-    # SCOPEBUDDY GLOBAL VARS
     echo 'export SCB_AUTO_HDR=1' >> /etc/profile.d/gaming.sh && \
     echo 'export SCB_AUTO_VRR=1' >> /etc/profile.d/gaming.sh && \
     echo 'export SCB_AUTO_RES=1' >> /etc/profile.d/gaming.sh && \
@@ -34,7 +31,6 @@ RUN mkdir -p /usr/lib/sysctl.d && \
     echo 'net.ipv4.tcp_congestion_control=bbr' >> /usr/lib/sysctl.d/99-gaming.conf && \
     echo 'net.core.default_qdisc=cake' >> /usr/lib/sysctl.d/99-gaming.conf
 
-# Load CAKE module
 RUN echo sch_cake > /etc/modules-load.d/cake.conf
 
 RUN mkdir -p /usr/share/gamemode && \
@@ -48,7 +44,6 @@ RUN mkdir -p /usr/share/gamemode && \
 RUN curl -fsSL https://copr.fedorainfracloud.org/coprs/ilyaz/LACT/repo/fedora-$(rpm -E %fedora)/ilyaz-LACT.repo \
     -o /etc/yum.repos.d/ilyaz-LACT.repo
 
-# TERRA FIX (Pragmatic approach)
 RUN sed -i 's/gpgcheck=1/gpgcheck=0/' /etc/yum.repos.d/terra.repo || true && \
     sed -i 's/gpgcheck=1/gpgcheck=0/' /etc/yum.repos.d/terra-mesa.repo || true
 
@@ -59,21 +54,19 @@ RUN rpm-ostree install \
     distribution-gpg-keys \
     && rm -rf /var/cache/rpms
 
-# ScopeBuddy
+# SCOPEBUDDY FIX: Use -sf to force the link if it exists
 RUN curl -fsSL "https://raw.githubusercontent.com/HikariKnight/ScopeBuddy/main/bin/scopebuddy" -o /usr/bin/scopebuddy && \
     chmod +x /usr/bin/scopebuddy && \
-    ln -s /usr/bin/scopebuddy /usr/bin/scb
+    ln -sf /usr/bin/scopebuddy /usr/bin/scb
 
 # ---------------------------------------------------------------------------
-# 4. LACT HARDENING (Atomic-Safe & Sorted)
+# 4. LACT HARDENING
 # ---------------------------------------------------------------------------
-# A. Service Override (Wait for Udev)
 RUN mkdir -p /etc/systemd/system/lactd.service.d && \
     echo '[Unit]' > /etc/systemd/system/lactd.service.d/override.conf && \
     echo 'After=systemd-udev-settle.service' >> /etc/systemd/system/lactd.service.d/override.conf && \
     echo 'Wants=systemd-udev-settle.service' >> /etc/systemd/system/lactd.service.d/override.conf
 
-# B. Dynamic Config Script (Sorted & Apply-On-Startup)
 RUN echo '#!/bin/bash' > /usr/bin/setup-lact.sh && \
     echo 'CARD=$(ls /sys/class/drm | grep "^card[0-9]$" | sort | head -n1)' >> /usr/bin/setup-lact.sh && \
     echo '[ -z "$CARD" ] && exit 0' >> /usr/bin/setup-lact.sh && \
@@ -91,7 +84,6 @@ RUN echo '#!/bin/bash' > /usr/bin/setup-lact.sh && \
     echo 'systemctl restart lactd' >> /usr/bin/setup-lact.sh && \
     chmod +x /usr/bin/setup-lact.sh
 
-# C. One-Shot Service to run the script
 RUN echo '[Unit]' > /etc/systemd/system/lact-setup.service && \
     echo 'Description=Generate LACT Config for GPU' >> /etc/systemd/system/lact-setup.service && \
     echo 'After=systemd-udev-settle.service' >> /etc/systemd/system/lact-setup.service && \
@@ -102,7 +94,6 @@ RUN echo '[Unit]' > /etc/systemd/system/lact-setup.service && \
     echo '[Install]' >> /etc/systemd/system/lact-setup.service && \
     echo 'WantedBy=multi-user.target' >> /etc/systemd/system/lact-setup.service
 
-# D. Enable Services (The Atomic Way)
 RUN systemctl enable lactd.service && \
     systemctl enable lact-setup.service
 
