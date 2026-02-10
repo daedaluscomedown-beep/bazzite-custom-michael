@@ -1,42 +1,68 @@
 FROM ghcr.io/ublue-os/bazzite:stable
 
 # ---------------------------------------------------------------------------
-# 1. PLATINUM PERFORMANCE TUNING (Atomic-Safe Profile)
+# 1. PLATINUM PERFORMANCE TUNING (Systemd Environment)
 # ---------------------------------------------------------------------------
-RUN mkdir -p /etc/profile.d && \
-    echo 'export AMD_VULKAN_ICD=radv' > /etc/profile.d/gaming.sh && \
-    echo 'export RADV_PERFTEST=gpl,sam,video_decode,nggc,rt' >> /etc/profile.d/gaming.sh && \
-    echo 'export RADV_RT_PIPELINE_CACHE=1' >> /etc/profile.d/gaming.sh && \
-    echo 'export ENABLE_LAYER_MESA_ANTI_LAG=1' >> /etc/profile.d/gaming.sh && \
-    echo 'export VKD3D_CONFIG=no_upload_hvv' >> /etc/profile.d/gaming.sh && \
-    echo 'export PROTON_USE_NTSYNC=1' >> /etc/profile.d/gaming.sh && \
-    echo 'export STEAM_FORCE_DESKTOPUI_SCALING=auto' >> /etc/profile.d/gaming.sh && \
-    echo 'export MESA_SHADER_CACHE_MAX_SIZE=20G' >> /etc/profile.d/gaming.sh && \
-    echo 'export MESA_SHADER_CACHE_DIR=/var/lib/mesa/\$UID' >> /etc/profile.d/gaming.sh && \
-    echo 'export MESA_SHADER_CACHE_SINGLE_FILE=1' >> /etc/profile.d/gaming.sh && \
-    echo 'export SCB_AUTO_HDR=1' >> /etc/profile.d/gaming.sh && \
-    echo 'export SCB_AUTO_VRR=1' >> /etc/profile.d/gaming.sh && \
-    echo 'export SCB_AUTO_RES=1' >> /etc/profile.d/gaming.sh && \
-    chmod +x /etc/profile.d/gaming.sh
+# We use /etc/environment.d for proper session integration (No 'export' needed here)
+RUN mkdir -p /etc/environment.d && \
+    echo 'AMD_VULKAN_ICD=radv' > /etc/environment.d/90-gaming.conf && \
+    echo 'RADV_PERFTEST=gpl,sam,video_decode,nggc,rt' >> /etc/environment.d/90-gaming.conf && \
+    echo 'RADV_RT_PIPELINE_CACHE=1' >> /etc/environment.d/90-gaming.conf && \
+    echo 'ENABLE_LAYER_MESA_ANTI_LAG=1' >> /etc/environment.d/90-gaming.conf && \
+    echo 'VKD3D_CONFIG=no_upload_hvv' >> /etc/environment.d/90-gaming.conf && \
+    echo 'PROTON_USE_NTSYNC=1' >> /etc/environment.d/90-gaming.conf && \
+    echo 'PROTON_NO_WGI=1' >> /etc/environment.d/90-gaming.conf && \
+    echo 'STEAM_FORCE_DESKTOPUI_SCALING=auto' >> /etc/environment.d/90-gaming.conf && \
+    echo 'MESA_SHADER_CACHE_MAX_SIZE=20G' >> /etc/environment.d/90-gaming.conf && \
+    echo 'MESA_SHADER_CACHE_DIR=/var/lib/mesa' >> /etc/environment.d/90-gaming.conf && \
+    echo 'MESA_SHADER_CACHE_SINGLE_FILE=1' >> /etc/environment.d/90-gaming.conf && \
+    echo 'SCB_AUTO_HDR=1' >> /etc/environment.d/90-gaming.conf && \
+    echo 'SCB_AUTO_VRR=1' >> /etc/environment.d/90-gaming.conf && \
+    echo 'SCB_AUTO_RES=1' >> /etc/environment.d/90-gaming.conf
+
+# Global Wayland Vars
+RUN echo 'SDL_VIDEODRIVER=wayland' > /etc/environment.d/96-wayland.conf && \
+    echo 'CLUTTER_BACKEND=wayland' >> /etc/environment.d/96-wayland.conf && \
+    echo 'MOZ_ENABLE_WAYLAND=1' >> /etc/environment.d/96-wayland.conf
 
 RUN mkdir -p /var/lib/mesa && chmod 1777 /var/lib/mesa
 
 # ---------------------------------------------------------------------------
-# 2. SYSCTL & GAMEMODE
+# 2. LOW LEVEL TUNING (Sysctl / NVMe / ZRAM / CPU)
 # ---------------------------------------------------------------------------
+# A. Sysctl (X3D Optimized)
 RUN mkdir -p /usr/lib/sysctl.d && \
-    echo 'vm.swappiness=1' > /usr/lib/sysctl.d/99-gaming.conf && \
+    echo 'vm.swappiness=15' > /usr/lib/sysctl.d/99-gaming.conf && \
     echo 'vm.vfs_cache_pressure=50' >> /usr/lib/sysctl.d/99-gaming.conf && \
-    echo 'vm.max_map_count=262144' >> /usr/lib/sysctl.d/99-gaming.conf && \
+    echo 'vm.dirty_ratio=15' >> /usr/lib/sysctl.d/99-gaming.conf && \
+    echo 'vm.dirty_background_ratio=5' >> /usr/lib/sysctl.d/99-gaming.conf && \
+    echo 'kernel.sched_latency_ns=6000000' >> /usr/lib/sysctl.d/99-gaming.conf && \
+    echo 'kernel.sched_min_granularity_ns=750000' >> /usr/lib/sysctl.d/99-gaming.conf && \
     echo 'net.ipv4.tcp_congestion_control=bbr' >> /usr/lib/sysctl.d/99-gaming.conf && \
     echo 'net.core.default_qdisc=cake' >> /usr/lib/sysctl.d/99-gaming.conf
 
 RUN echo sch_cake > /etc/modules-load.d/cake.conf
 
-RUN mkdir -p /usr/share/gamemode && \
-    echo '[general]' > /usr/share/gamemode/gamemode.ini && \
-    echo 'renice=10' >> /usr/share/gamemode/gamemode.ini && \
-    echo 'ioprio=0' >> /usr/share/gamemode/gamemode.ini
+# B. NVMe Scheduler (Force 'none' for shader stability)
+RUN echo 'ACTION=="add|change", KERNEL=="nvme*n*", ATTR{queue/scheduler}="none"' > /etc/udev/rules.d/60-nvme-scheduler.rules
+
+# C. ZRAM Optimization
+RUN echo '[zram0]' > /etc/systemd/zram-generator.conf && \
+    echo 'zram-size = ram / 2' >> /etc/systemd/zram-generator.conf && \
+    echo 'compression-algorithm = zstd' >> /etc/systemd/zram-generator.conf && \
+    echo 'swap-priority = 100' >> /etc/systemd/zram-generator.conf
+
+# D. CPU Governor Enforcer Service
+RUN echo '[Unit]' > /etc/systemd/system/cpu-performance.service && \
+    echo 'Description=Force CPU Governor Performance' >> /etc/systemd/system/cpu-performance.service && \
+    echo 'After=multi-user.target' >> /etc/systemd/system/cpu-performance.service && \
+    echo '[Service]' >> /etc/systemd/system/cpu-performance.service && \
+    echo 'Type=oneshot' >> /etc/systemd/system/cpu-performance.service && \
+    echo 'ExecStart=/usr/bin/cpupower frequency-set -g performance' >> /etc/systemd/system/cpu-performance.service && \
+    echo '[Install]' >> /etc/systemd/system/cpu-performance.service && \
+    echo 'WantedBy=multi-user.target' >> /etc/systemd/system/cpu-performance.service
+
+RUN systemctl enable cpu-performance.service
 
 # ---------------------------------------------------------------------------
 # 3. PACKAGES & REPOS
@@ -52,21 +78,27 @@ RUN rpm-ostree install \
     mangohud \
     goverlay \
     distribution-gpg-keys \
+    protonup-qt \
     && rm -rf /var/cache/rpms
 
-# SCOPEBUDDY FIX: Use -sf to force the link if it exists
+# SCOPEBUDDY
 RUN curl -fsSL "https://raw.githubusercontent.com/HikariKnight/ScopeBuddy/main/bin/scopebuddy" -o /usr/bin/scopebuddy && \
     chmod +x /usr/bin/scopebuddy && \
     ln -sf /usr/bin/scopebuddy /usr/bin/scb
 
 # ---------------------------------------------------------------------------
-# 4. LACT HARDENING
+# 4. LACT HARDENING & POWER MANAGEMENT
 # ---------------------------------------------------------------------------
+# Disable power-profiles-daemon so LACT can rule
+RUN systemctl mask power-profiles-daemon.service
+
+# Race Condition Fix
 RUN mkdir -p /etc/systemd/system/lactd.service.d && \
     echo '[Unit]' > /etc/systemd/system/lactd.service.d/override.conf && \
     echo 'After=systemd-udev-settle.service' >> /etc/systemd/system/lactd.service.d/override.conf && \
     echo 'Wants=systemd-udev-settle.service' >> /etc/systemd/system/lactd.service.d/override.conf
 
+# Dynamic Config Script
 RUN echo '#!/bin/bash' > /usr/bin/setup-lact.sh && \
     echo 'CARD=$(ls /sys/class/drm | grep "^card[0-9]$" | sort | head -n1)' >> /usr/bin/setup-lact.sh && \
     echo '[ -z "$CARD" ] && exit 0' >> /usr/bin/setup-lact.sh && \
@@ -84,6 +116,7 @@ RUN echo '#!/bin/bash' > /usr/bin/setup-lact.sh && \
     echo 'systemctl restart lactd' >> /usr/bin/setup-lact.sh && \
     chmod +x /usr/bin/setup-lact.sh
 
+# Setup Service
 RUN echo '[Unit]' > /etc/systemd/system/lact-setup.service && \
     echo 'Description=Generate LACT Config for GPU' >> /etc/systemd/system/lact-setup.service && \
     echo 'After=systemd-udev-settle.service' >> /etc/systemd/system/lact-setup.service && \

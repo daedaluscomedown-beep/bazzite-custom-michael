@@ -7,7 +7,7 @@ hostname = "deconfliction-pc"
 [customizations.installer.kickstart]
 contents = """
 # ============================================================================
-# BAZZITE BTRFS FOUNDATION (Production / UEFI)
+# BAZZITE BTRFS FOUNDATION (Gold Master / UEFI)
 # ============================================================================
 lang en_US.UTF-8
 keyboard us
@@ -30,9 +30,9 @@ btrfs /     --subvol --name=root btrfs.01
 btrfs /home --subvol --name=home btrfs.01
 btrfs /var  --subvol --name=var  btrfs.01
 
-# 4. Bootloader (UEFI Mode)
-# FIX APPLIED: Removed '--efi' and changed 'None' to 'none'
-bootloader --location=none --boot-drive=nvme0n1
+# 4. Bootloader (UEFI Mode + Performance Args)
+# We append the Critical X3D and Latency arguments here.
+bootloader --location=none --boot-drive=nvme0n1 --append="amd_pstate=active transparent_hugepage=madvise mitigations=off nowatchdog nvme.noacpi=1"
 
 reboot
 
