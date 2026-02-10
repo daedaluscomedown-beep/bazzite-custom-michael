@@ -7,7 +7,7 @@ hostname = "deconfliction-pc"
 [customizations.installer.kickstart]
 contents = """
 # ============================================================================
-# BAZZITE BTRFS FOUNDATION (Diamond Master / UEFI)
+# BAZZITE BTRFS FOUNDATION (Autopart Failsafe)
 # ============================================================================
 lang en_US.UTF-8
 keyboard us
@@ -15,33 +15,23 @@ timezone America/New_York --utc
 network --bootproto=dhcp --device=link --activate
 rootpw --plaintext changeme
 
-# 1. Safety & Initialization
+# 1. Drive Selection
+# We wipe everything and force the installer to only see the NVMe drive.
 zerombr
 clearpart --all --initlabel --drives=nvme0n1
 ignoredisk --only-use=nvme0n1
 
-# 2. Partitioning (Canonical Fedora Atomic Layout)
-part /boot/efi --fstype=efi --size=600 --ondisk=nvme0n1
-part /boot     --fstype=ext4 --size=1024 --ondisk=nvme0n1
-part btrfs.01 --fstype=btrfs --size=1 --grow --ondisk=nvme0n1
+# 2. Partitioning (The Fix)
+# Instead of manual lines, we let Anaconda calculate the perfect BTRFS layout.
+autopart --type=btrfs
 
-# 3. Subvolumes
-btrfs /     --subvol --name=root btrfs.01
-btrfs /home --subvol --name=home btrfs.01
-btrfs /var  --subvol --name=var  btrfs.01
-
-# 4. Bootloader (UEFI Mode + Diamond Performance Args)
-# - amd_pstate=active: Critical for 5800X3D frequency stability
-# - amd_pstate.shared_mem=1: Optimizes CPPC for X3D cache
-# - split_lock_detect=off: Prevents performance penalties in some games
-# - amdgpu.ppfeaturemask=0xffffffff: Unlocks all GPU overclocking features
-# - transparent_hugepage=madvise: Prevents cache thrashing
-# - mitigations=off: Max performance (Gaming Appliance Mode)
-bootloader --location=none --boot-drive=nvme0n1 --append="amd_pstate=active amd_pstate.shared_mem=1 split_lock_detect=off amdgpu.ppfeaturemask=0xffffffff transparent_hugepage=madvise mitigations=off nowatchdog nvme.noacpi=1"
+# 3. Bootloader
+# We let the installer handle the bootloader installation automatically.
+bootloader --location=none --boot-drive=nvme0n1
 
 reboot
 
 %post
-echo "BTRFS UEFI Foundation Installed."
+echo "BTRFS Failsafe Installed."
 %end
 """
