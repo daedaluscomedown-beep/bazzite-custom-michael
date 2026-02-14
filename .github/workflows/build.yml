@@ -16,8 +16,6 @@ env:
   IMAGE_DESC: "My Customized Universal Blue Image"
   IMAGE_KEYWORDS: "bootc,ublue,universal-blue"
   IMAGE_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"
-  # NAME: "Deconfliction"
-  # IMAGE_NAME removed here to be set dynamically in the matrix
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
   DEFAULT_TAG: "latest"
 
@@ -39,8 +37,8 @@ jobs:
         include:
           - image_name: deconfliction
             containerfile: ./Containerfile
-          - image_name: deconfliction-htpc
-            containerfile: ./Containerfile-htpc
+          # - image_name: deconfliction-htpc   <-- DISABLED TEMPORARILY
+          #   containerfile: ./Containerfile-htpc
 
     permissions:
       contents: read
@@ -50,6 +48,7 @@ jobs:
     steps:
       - name: Prepare environment
         run: |
+          # Lowercase registry for compatibility
           echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> ${GITHUB_ENV}
           # Set IMAGE_NAME dynamically from the matrix
           echo "IMAGE_NAME=${{ matrix.image_name }}" >> ${GITHUB_ENV}
@@ -57,7 +56,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # --- FIX: Reverted to the specific SHA hash that is guaranteed to work ---
       - name: Maximize build space
         uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6
 
