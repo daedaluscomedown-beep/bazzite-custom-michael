@@ -1,5 +1,5 @@
 # ============================================================
-# FINAL BOSS: BAZZITE 5800X3D + RDNA ULTRA-OPTIMIZED
+# FINAL BOSS V3: BAZZITE 5800X3D + RDNA ULTRA-OPTIMIZED
 # Focus: Deterministic, Immutable-Safe, Zero-Latency
 # ============================================================
 
@@ -10,11 +10,19 @@ LABEL org.opencontainers.image.description="Maximum Performance 5800X3D/RDNA Ima
 LABEL org.opencontainers.image.authors="Michael O'Neill"
 
 # ------------------------------------------------------------
-# 1. REPOS (Pinned to F40 for Stability)
+# 1. REPOS (Manual Definition - No Network Failures)
 # ------------------------------------------------------------
-# CRITICAL FIX: Use Fedora 40 repo. F41 target is missing in COPR.
-RUN curl -L -o /etc/yum.repos.d/lact.repo \
-    https://copr.fedorainfracloud.org/coprs/iguanadil/lact/repo/fedora-40/iguanadil-lact-fedora-40.repo
+# We manually write the repo file instead of curling it. 
+# We target Fedora 40 explicitly because it is stable and binary-compatible.
+RUN printf '[copr:copr.fedorainfracloud.org:iguanadil:lact]\n\
+name=Copr repo for lact owned by iguanadil\n\
+baseurl=https://download.copr.fedorainfracloud.org/results/iguanadil/lact/fedora-40-$basearch/\n\
+type=rpm-md\n\
+skip_if_unavailable=True\n\
+gpgcheck=1\n\
+gpgkey=https://download.copr.fedorainfracloud.org/results/iguanadil/lact/pubkey.gpg\n\
+repo_gpgcheck=0\n\
+enabled=1\n' > /etc/yum.repos.d/lact.repo
 
 # ------------------------------------------------------------
 # 2. PACKAGES (Additions Only)
