@@ -1,6 +1,6 @@
 # ============================================================
 # HTPC IMAGE: 5800X3D + RDNA ULTRA-OPTIMIZED
-# Focus: Maximum Performance, Identical to Main Rig
+# Focus: Maximum Performance + Media Apps (Kodi/VLC)
 # ============================================================
 
 FROM ghcr.io/ublue-os/bazzite:latest
@@ -10,9 +10,9 @@ LABEL org.opencontainers.image.description="Maximum Performance HTPC Image"
 LABEL org.opencontainers.image.authors="Michael O'Neill"
 
 # ------------------------------------------------------------
-# 1. REPOS (OFFICIAL SOURCE - FIXED)
+# 1. REPOS: LACT + RPM FUSION (Hardcoded for Stability)
 # ------------------------------------------------------------
-# Using the same fixed 'ilyaz' repo for LACT
+# LACT Repo (Official ilyaz / Fedora 41)
 RUN printf '[copr:copr.fedorainfracloud.org:ilyaz:LACT]\n\
 name=Copr repo for LACT owned by ilyaz\n\
 baseurl=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/fedora-41-x86_64/\n\
@@ -23,10 +23,28 @@ gpgkey=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/pubkey.gpg\
 repo_gpgcheck=0\n\
 enabled=1\n' > /etc/yum.repos.d/lact.repo
 
+# RPM FUSION FREE (Required for Kodi, VLC, MPV)
+RUN printf '[rpmfusion-free]\n\
+name=RPM Fusion for Fedora 41 - Free\n\
+baseurl=https://mirrors.rpmfusion.org/free/fedora/releases/41/Everything/x86_64/os/\n\
+type=rpm-md\n\
+skip_if_unavailable=True\n\
+gpgcheck=0\n\
+enabled=1\n' > /etc/yum.repos.d/rpmfusion-free.repo
+
+# RPM FUSION NON-FREE (Required for extra codecs)
+RUN printf '[rpmfusion-nonfree]\n\
+name=RPM Fusion for Fedora 41 - Nonfree\n\
+baseurl=https://mirrors.rpmfusion.org/nonfree/fedora/releases/41/Everything/x86_64/os/\n\
+type=rpm-md\n\
+skip_if_unavailable=True\n\
+gpgcheck=0\n\
+enabled=1\n' > /etc/yum.repos.d/rpmfusion-nonfree.repo
+
 # ------------------------------------------------------------
 # 2. PACKAGES (Gaming + HTPC Tools)
 # ------------------------------------------------------------
-# Added: kodi, vlc, mpv (Standard HTPC kit)
+# Now that RPM Fusion is added, Kodi and VLC will be found.
 RUN rpm-ostree install \
     lact \
     gamemode \
@@ -59,12 +77,10 @@ RUN mkdir -p /etc/sysctl.d && \
 # ------------------------------------------------------------
 # 4. FORCE PERFORMANCE GOVERNOR
 # ------------------------------------------------------------
-# 1. Mask the stock power daemons
 RUN systemctl mask power-profiles-daemon.service \
     tuned.service \
     tuned-ppd.service
 
-# 2. Force 'performance' governor at boot
 RUN printf "[Unit]\nDescription=Force CPU Performance Governor\nAfter=multi-user.target\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/cpupower frequency-set -g performance\nExecStart=/usr/bin/cpupower idle-set -D 0\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n" > /etc/systemd/system/force-performance.service
 RUN systemctl enable force-performance.service
 
