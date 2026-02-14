@@ -10,7 +10,7 @@ LABEL org.opencontainers.image.description="Maximum Performance HTPC Image"
 LABEL org.opencontainers.image.authors="Michael O'Neill"
 
 # ------------------------------------------------------------
-# 1. REPOS: LACT + RPM FUSION (Hardcoded for Stability)
+# 1. REPOS: LACT + RPM FUSION (Metalink Fixed)
 # ------------------------------------------------------------
 # LACT Repo (Official ilyaz / Fedora 41)
 RUN printf '[copr:copr.fedorainfracloud.org:ilyaz:LACT]\n\
@@ -23,19 +23,19 @@ gpgkey=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/pubkey.gpg\
 repo_gpgcheck=0\n\
 enabled=1\n' > /etc/yum.repos.d/lact.repo
 
-# RPM FUSION FREE (Required for Kodi, VLC, MPV)
+# RPM FUSION FREE (Metalink - Bulletproof)
 RUN printf '[rpmfusion-free]\n\
 name=RPM Fusion for Fedora 41 - Free\n\
-baseurl=https://mirrors.rpmfusion.org/free/fedora/releases/41/Everything/x86_64/os/\n\
+metalink=https://mirrors.rpmfusion.org/metalink?repo=free-fedora-41&arch=x86_64\n\
 type=rpm-md\n\
 skip_if_unavailable=True\n\
 gpgcheck=0\n\
 enabled=1\n' > /etc/yum.repos.d/rpmfusion-free.repo
 
-# RPM FUSION NON-FREE (Required for extra codecs)
+# RPM FUSION NON-FREE (Metalink - Bulletproof)
 RUN printf '[rpmfusion-nonfree]\n\
 name=RPM Fusion for Fedora 41 - Nonfree\n\
-baseurl=https://mirrors.rpmfusion.org/nonfree/fedora/releases/41/Everything/x86_64/os/\n\
+metalink=https://mirrors.rpmfusion.org/metalink?repo=nonfree-fedora-41&arch=x86_64\n\
 type=rpm-md\n\
 skip_if_unavailable=True\n\
 gpgcheck=0\n\
@@ -44,7 +44,8 @@ enabled=1\n' > /etc/yum.repos.d/rpmfusion-nonfree.repo
 # ------------------------------------------------------------
 # 2. PACKAGES (Gaming + HTPC Tools)
 # ------------------------------------------------------------
-# Now that RPM Fusion is added, Kodi and VLC will be found.
+# Added: kodi, vlc, mpv. 
+# We use --idempotent to handle re-runs cleanly.
 RUN rpm-ostree install \
     lact \
     gamemode \
