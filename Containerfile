@@ -1,11 +1,20 @@
+# ============================================================
+# GAMING PERFORMANCE IMAGE
+# Target: Bazzite (bootc / ostree)
+# Focus: Stability + Performance
+# Hardware: Ryzen 7 5800X3D + RDNA GPU
+# ============================================================
+
 FROM ghcr.io/ublue-os/bazzite:latest
 
-# ===============================
-# Performance + Stability Packages
-# ===============================
+LABEL org.opencontainers.image.title="bazzite-gaming-michael"
+LABEL org.opencontainers.image.description="Stable high-performance Bazzite gaming image"
+LABEL org.opencontainers.image.authors="Michael O'Neill"
 
+# ------------------------------------------------------------
+# Core Tools (Fedora native only — no COPR risk)
+# ------------------------------------------------------------
 RUN rpm-ostree install \
-    lact \
     gamemode \
     tuned \
     tuned-ppd \
@@ -18,63 +27,23 @@ RUN rpm-ostree install \
     distrobox \
     podman \
     power-profiles-daemon \
-    --idempotent
+    --idempotent \
+    && rpm-ostree cleanup -m
 
-# ===============================
-# Remove power-profiles-daemon (conflicts with tuned)
-# ===============================
+# ------------------------------------------------------------
+# Gaming sysctl tuning (Safe values)
+# ------------------------------------------------------------
+RUN mkdir -p /etc/sysctl.d && \
+    printf '%s\n' \
+    "vm.swappiness=10" \
+    "vm.dirty_ratio=10" \
+    "vm.dirty_background_ratio=5" \
+    "kernel.sched_autogroup_enabled=0" \
+    > /etc/sysctl.d/99-gaming-performance.conf
 
-RUN ln -sf /dev/null /etc/systemd/system/power-profiles-daemon.service
+# ------------------------------------------------------------
+# Enable tuned performance profile
+# ------------------------------------------------------------
+RUN systemctl enable tuned.service
 
-# ===============================
-# Enable tuned (performance profile)
-# ===============================
-
-RUN mkdir -p /etc/systemd/system/multi-user.target.wants && \
-    ln -sf /usr/lib/systemd/system/tuned.service \
-    /etc/systemd/system/multi-user.target.wants/tuned.service
-
-# Set tuned profile to throughput-performance (best for 5800X3D)
-RUN mkdir -p /etc/tuned && \
-    echo "throughput-performance" > /etc/tuned/active_profile
-
-# ===============================
-# Enable LACT daemon
-# ===============================
-
-RUN ln -sf /usr/lib/systemd/system/lactd.service \
-    /etc/systemd/system/multi-user.target.wants/lactd.service
-
-# ===============================
-# GE-Proton Auto Update Script
-# ===============================
-
-COPY ge-proton-update.sh /usr/local/bin/ge-proton-update.sh
-RUN chmod +x /usr/local/bin/ge-proton-update.sh
-
-COPY ge-proton-update.service /etc/systemd/system/ge-proton-update.service
-COPY ge-proton-update.timer /etc/systemd/system/ge-proton-update.timer
-
-RUN mkdir -p /etc/systemd/system/timers.target.wants && \
-    ln -sf /etc/systemd/system/ge-proton-update.timer \
-    /etc/systemd/system/timers.target.wants/ge-proton-update.timer
-
-# ===============================
-# Sysctl Performance Tweaks
-# ===============================
-
-COPY 99-gaming-performance.conf /etc/sysctl.d/99-gaming-performance.conf
-
-# ===============================
-# ZRAM tuning (better for 32GB RAM)
-# ===============================
-
-RUN mkdir -p /etc/systemd/zram-generator.conf.d && \
-    echo -e "[zram0]\nzram-size = ram / 2\ncompression-algorithm = zstd" \
-    > /etc/systemd/zram-generator.conf.d/custom.conf
-
-# ===============================
-# Finish
-# ===============================
-
-RUN ostree container commit
+CMD ["/sbin/init"]
