@@ -1,5 +1,5 @@
 # ============================================================
-# FINAL BOSS V3: BAZZITE 5800X3D + RDNA ULTRA-OPTIMIZED
+# FINAL BOSS V4: BAZZITE 5800X3D + RDNA ULTRA-OPTIMIZED
 # Focus: Deterministic, Immutable-Safe, Zero-Latency
 # ============================================================
 
@@ -10,13 +10,12 @@ LABEL org.opencontainers.image.description="Maximum Performance 5800X3D/RDNA Ima
 LABEL org.opencontainers.image.authors="Michael O'Neill"
 
 # ------------------------------------------------------------
-# 1. REPOS (Manual Definition - No Network Failures)
+# 1. REPOS (Manual Definition - ESCAPED & FIXED)
 # ------------------------------------------------------------
-# We manually write the repo file instead of curling it. 
-# We target Fedora 40 explicitly because it is stable and binary-compatible.
+# CRITICAL FIX: We escaped \$basearch so the shell doesn't delete it.
 RUN printf '[copr:copr.fedorainfracloud.org:iguanadil:lact]\n\
 name=Copr repo for lact owned by iguanadil\n\
-baseurl=https://download.copr.fedorainfracloud.org/results/iguanadil/lact/fedora-40-$basearch/\n\
+baseurl=https://download.copr.fedorainfracloud.org/results/iguanadil/lact/fedora-40-\$basearch/\n\
 type=rpm-md\n\
 skip_if_unavailable=True\n\
 gpgcheck=1\n\
@@ -27,8 +26,7 @@ enabled=1\n' > /etc/yum.repos.d/lact.repo
 # ------------------------------------------------------------
 # 2. PACKAGES (Additions Only)
 # ------------------------------------------------------------
-# We do NOT remove power-profiles-daemon here to avoid build failures.
-# We will mask it later (disable it) instead.
+# Installing kernel-tools ensures we have cpupower.
 RUN rpm-ostree install \
     lact \
     gamemode \
