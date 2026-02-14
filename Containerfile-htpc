@@ -1,94 +1,121 @@
 # ============================================================
-# HTPC / MEDIA VARIANT
-# Target: Bazzite (bootc / ostree)
-# Focus: Stability, hardware decode, low latency playback
-# Hardware: Ryzen 7 5800X3D + AMD RDNA (VCN)
+# HTPC IMAGE: 5800X3D + RDNA ULTRA-OPTIMIZED
+# Focus: Maximum Performance, Identical to Main Rig
 # ============================================================
 
 FROM ghcr.io/ublue-os/bazzite:latest
 
-# ------------------------------------------------------------
-# 1. Metadata
-# ------------------------------------------------------------
 LABEL org.opencontainers.image.title="bazzite-htpc-michael"
-LABEL org.opencontainers.image.description="Optimized HTPC-focused Bazzite image with Kodi, VAAPI, and AMD VCN tuning"
+LABEL org.opencontainers.image.description="Maximum Performance HTPC Image"
 LABEL org.opencontainers.image.authors="Michael O'Neill"
 
 # ------------------------------------------------------------
-# 2. Base OS prep
+# 1. REPOS (OFFICIAL SOURCE - FIXED)
 # ------------------------------------------------------------
+# Using the same fixed 'ilyaz' repo for LACT
+RUN printf '[copr:copr.fedorainfracloud.org:ilyaz:LACT]\n\
+name=Copr repo for LACT owned by ilyaz\n\
+baseurl=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/fedora-41-x86_64/\n\
+type=rpm-md\n\
+skip_if_unavailable=True\n\
+gpgcheck=1\n\
+gpgkey=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/pubkey.gpg\n\
+repo_gpgcheck=0\n\
+enabled=1\n' > /etc/yum.repos.d/lact.repo
+
+# ------------------------------------------------------------
+# 2. PACKAGES (Gaming + HTPC Tools)
+# ------------------------------------------------------------
+# Added: kodi, vlc, mpv (Standard HTPC kit)
 RUN rpm-ostree install \
+    lact \
+    gamemode \
+    kernel-tools \
+    btop \
+    nvtop \
+    git \
+    curl \
+    jq \
+    distrobox \
     kodi \
-    kodi-pvr-iptvsimple \
-    pipewire-jack-audio-connection-kit \
-    wireplumber \
-    mesa-va-drivers \
-    mesa-vdpau-drivers \
-    libva-utils \
-    ffmpeg \
+    vlc \
+    mpv \
+    --idempotent \
     && rpm-ostree cleanup -m
 
 # ------------------------------------------------------------
-# 3. AMD Video Decode / VAAPI tuning
-# ------------------------------------------------------------
-RUN mkdir -p /etc/environment.d && \
-    printf '%s\n' \
-    "LIBVA_DRIVER_NAME=radeonsi" \
-    "VDPAU_DRIVER=radeonsi" \
-    "AMD_VCN_ENABLE=1" \
-    > /etc/environment.d/90-amd-vaapi.conf
-
-# ------------------------------------------------------------
-# 4. PipeWire low-latency defaults (safe for HTPC)
-# ------------------------------------------------------------
-RUN mkdir -p /etc/pipewire/pipewire.conf.d && \
-    printf '%s\n' \
-    "context.properties = {" \
-    "  default.clock.rate = 48000" \
-    "  default.clock.quantum = 256" \
-    "  default.clock.min-quantum = 128" \
-    "}" \
-    > /etc/pipewire/pipewire.conf.d/10-htpc.conf
-
-# ------------------------------------------------------------
-# 5. Disable unnecessary services (HTPC focused)
-# ------------------------------------------------------------
-RUN systemctl disable \
-    bluetooth.service \
-    cups.service \
-    ModemManager.service \
-    avahi-daemon.service || true
-
-# ------------------------------------------------------------
-# 6. Kernel & VM tuning (HTPC-friendly)
+# 3. KERNEL & SCHEDULER TUNING (5800X3D Specific)
 # ------------------------------------------------------------
 RUN mkdir -p /etc/sysctl.d && \
     printf '%s\n' \
-    "vm.swappiness=10" \
+    "vm.swappiness=1" \
     "vm.dirty_ratio=10" \
     "vm.dirty_background_ratio=5" \
-    "kernel.sched_latency_ns=6000000" \
-    "kernel.sched_min_granularity_ns=750000" \
-    > /etc/sysctl.d/90-htpc.conf
+    "kernel.sched_autogroup_enabled=0" \
+    "kernel.hung_task_timeout_secs=120" \
+    "kernel.nmi_watchdog=0" \
+    > /etc/sysctl.d/99-gaming-final.conf
 
 # ------------------------------------------------------------
-# 7. Filesystem tuning (BTRFS safe)
+# 4. FORCE PERFORMANCE GOVERNOR
 # ------------------------------------------------------------
-RUN mkdir -p /etc/systemd/system/systemd-tmpfiles-setup.service.d && \
-    printf '%s\n' \
-    "[Service]" \
-    "ExecStartPost=/usr/bin/btrfs filesystem defragment -r /var/lib || true" \
-    > /etc/systemd/system/systemd-tmpfiles-setup.service.d/htpc-btrfs.conf
+# 1. Mask the stock power daemons
+RUN systemctl mask power-profiles-daemon.service \
+    tuned.service \
+    tuned-ppd.service
+
+# 2. Force 'performance' governor at boot
+RUN printf "[Unit]\nDescription=Force CPU Performance Governor\nAfter=multi-user.target\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/cpupower frequency-set -g performance\nExecStart=/usr/bin/cpupower idle-set -D 0\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n" > /etc/systemd/system/force-performance.service
+RUN systemctl enable force-performance.service
 
 # ------------------------------------------------------------
-# 8. Autologin hint (display manager handles final config)
+# 5. GE-PROTON (Immutable-Safe)
 # ------------------------------------------------------------
-RUN mkdir -p /etc/profile.d && \
-    printf '%s\n' \
-    "export KODI_AE_SINK=PIPEWIRE" \
-    > /etc/profile.d/htpc.sh
+RUN mkdir -p /usr/share/steam/compatibilitytools.d && \
+    ln -s /var/opt/ge-proton-latest /usr/share/steam/compatibilitytools.d/ge-proton-latest
+
+# The Auto-Updater Script
+RUN mkdir -p /usr/libexec && \
+    printf '#!/usr/bin/env bash\n\
+set -euo pipefail\n\
+TARGET_DIR="/var/opt/ge-proton-latest"\n\
+TMP_DIR="$(mktemp -d)"\n\
+\n\
+# Fetch latest URL\n\
+LATEST_JSON="$(curl -fsSL https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest)"\n\
+TARBALL_URL="$(echo "$LATEST_JSON" | grep browser_download_url | grep tar.gz | cut -d \" -f 4)"\n\
+\n\
+# Download & Extract\n\
+mkdir -p "$TARGET_DIR"\n\
+cd "$TMP_DIR"\n\
+curl -fsSL "$TARBALL_URL" -o ge.tar.gz\n\
+tar -xzf ge.tar.gz\n\
+\n\
+# Sync new files\n\
+rm -rf "$TARGET_DIR"/*\n\
+mv GE-Proton*/* "$TARGET_DIR"/\n\
+\n\
+# Clean up\n\
+rm -rf "$TMP_DIR"\n\
+sed -i "s/GE-Proton.*/ge-proton-latest/" "$TARGET_DIR/compatibilitytool.vdf" || true\n\
+' > /usr/libexec/update-ge-proton.sh && \
+    chmod +x /usr/libexec/update-ge-proton.sh
+
+# Service & Timer
+RUN printf "[Unit]\nDescription=Update GE-Proton\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nExecStart=/usr/libexec/update-ge-proton.sh\n" > /etc/systemd/system/ge-proton-update.service
+RUN printf "[Unit]\nDescription=Daily GE-Proton Update\n\n[Timer]\nOnBootSec=10min\nOnUnitActiveSec=24h\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n" > /etc/systemd/system/ge-proton-update.timer
+RUN systemctl enable ge-proton-update.timer
 
 # ------------------------------------------------------------
-# 9. Finalize
+# 6. LACT OVERRIDE
 # ------------------------------------------------------------
+RUN mkdir -p /etc/systemd/system/lactd.service.d && \
+    printf '[Unit]\nAfter=multi-user.target\nRequires=multi-user.target\n' > /etc/systemd/system/lactd.service.d/override.conf
+RUN systemctl enable lactd.service
+
+# ------------------------------------------------------------
+# 7. FINAL CLEANUP
+# ------------------------------------------------------------
+RUN systemctl mask abrtd.service
+
 CMD ["/sbin/init"]
