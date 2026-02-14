@@ -10,11 +10,11 @@ LABEL org.opencontainers.image.description="Maximum Performance 5800X3D/RDNA Ima
 LABEL org.opencontainers.image.authors="Michael O'Neill"
 
 # ------------------------------------------------------------
-# 1. REPOS (Pinned for Stability)
+# 1. REPOS (Pinned to F40 for Stability)
 # ------------------------------------------------------------
-# Use curl (safer than wget) to fetch the LACT repo
+# CRITICAL FIX: Use Fedora 40 repo. F41 target is missing in COPR.
 RUN curl -L -o /etc/yum.repos.d/lact.repo \
-    https://copr.fedorainfracloud.org/coprs/iguanadil/lact/repo/fedora-41/iguanadil-lact-fedora-41.repo
+    https://copr.fedorainfracloud.org/coprs/iguanadil/lact/repo/fedora-40/iguanadil-lact-fedora-40.repo
 
 # ------------------------------------------------------------
 # 2. PACKAGES (Additions Only)
