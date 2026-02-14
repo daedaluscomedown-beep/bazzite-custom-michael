@@ -20,20 +20,34 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Build ISO with bootc-image-builder
-        uses: osbuild/bootc-image-builder-action@v1
+      # --- CRITICAL ADDITION: Login to Registry ---
+      # The builder needs to PULL your image. If it's private, this is required.
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          # Point to your image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build ISO with bootc-image-builder
+        uses: osbuild/bootc-image-builder-action@v0.0.2
+        with:
           config-file: ./iso.toml
           image: ghcr.io/daedaluscomedown-beep/deconfliction:latest
           
-          # CRITICAL FIX: Removed "--rootfs ext4"
-          # We only keep librepo for build speed/caching if needed.
+          # --- CRITICAL FIX 1: Set type to ISO ---
+          # Without this, you get a VM disk (qcow2) instead of a USB installer.
+          type: iso
+          
+          # Keep your existing args
           additional-args: --use-librepo=True
 
       - name: Upload ISO Artifact
         uses: actions/upload-artifact@v4
         with:
           name: bazzite-deconfliction-install.iso
-          path: output/qcow2/installer.iso
+          
+          # --- CRITICAL FIX 2: Correct Path ---
+          # The builder puts ISOs in 'output/iso/', not 'qcow2'.
+          path: output/iso/install.iso
           if-no-files-found: error
