@@ -1,0 +1,8 @@
+[Unit]
+Description=Update GE-Proton
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ge-proton-update.sh

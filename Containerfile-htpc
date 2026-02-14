@@ -1,100 +1,94 @@
-ARG IMAGE_NAME="bazzite-deck"
-ARG IMAGE_VENDOR="ublue-os"
-ARG IMAGE_TAG="stable"
-FROM ghcr.io/${IMAGE_VENDOR}/${IMAGE_NAME}:${IMAGE_TAG}
+# ============================================================
+# HTPC / MEDIA VARIANT
+# Target: Bazzite (bootc / ostree)
+# Focus: Stability, hardware decode, low latency playback
+# Hardware: Ryzen 7 5800X3D + AMD RDNA (VCN)
+# ============================================================
 
-# ==============================================================================
-# 1. ENVIRONMENT — MEDIA SAFE
-# ==============================================================================
+FROM ghcr.io/ublue-os/bazzite:latest
+
+# ------------------------------------------------------------
+# 1. Metadata
+# ------------------------------------------------------------
+LABEL org.opencontainers.image.title="bazzite-htpc-michael"
+LABEL org.opencontainers.image.description="Optimized HTPC-focused Bazzite image with Kodi, VAAPI, and AMD VCN tuning"
+LABEL org.opencontainers.image.authors="Michael O'Neill"
+
+# ------------------------------------------------------------
+# 2. Base OS prep
+# ------------------------------------------------------------
+RUN rpm-ostree install \
+    kodi \
+    kodi-pvr-iptvsimple \
+    pipewire-jack-audio-connection-kit \
+    wireplumber \
+    mesa-va-drivers \
+    mesa-vdpau-drivers \
+    libva-utils \
+    ffmpeg \
+    && rpm-ostree cleanup -m
+
+# ------------------------------------------------------------
+# 3. AMD Video Decode / VAAPI tuning
+# ------------------------------------------------------------
 RUN mkdir -p /etc/environment.d && \
-    cat > /etc/environment.d/90-htpc.conf << 'EOF'
-AMD_VULKAN_ICD=radv
-RADV_DEBUG=aco
-RADV_RT_PIPELINE_CACHE=1
-MESA_SHADER_CACHE_MAX_SIZE=10G
-MESA_SHADER_CACHE_DIR=/var/lib/mesa
-MESA_SHADER_CACHE_SINGLE_FILE=1
-EOF
+    printf '%s\n' \
+    "LIBVA_DRIVER_NAME=radeonsi" \
+    "VDPAU_DRIVER=radeonsi" \
+    "AMD_VCN_ENABLE=1" \
+    > /etc/environment.d/90-amd-vaapi.conf
 
-RUN mkdir -p /var/lib/mesa && chmod 1777 /var/lib/mesa
+# ------------------------------------------------------------
+# 4. PipeWire low-latency defaults (safe for HTPC)
+# ------------------------------------------------------------
+RUN mkdir -p /etc/pipewire/pipewire.conf.d && \
+    printf '%s\n' \
+    "context.properties = {" \
+    "  default.clock.rate = 48000" \
+    "  default.clock.quantum = 256" \
+    "  default.clock.min-quantum = 128" \
+    "}" \
+    > /etc/pipewire/pipewire.conf.d/10-htpc.conf
 
-# ==============================================================================
-# 2. SYSTEM TUNING — STABILITY FIRST
-# ==============================================================================
-RUN mkdir -p /usr/lib/sysctl.d && \
-    cat > /usr/lib/sysctl.d/99-htpc.conf << 'EOF'
-vm.swappiness=5
-vm.vfs_cache_pressure=75
-kernel.hung_task_timeout_secs=120
-net.ipv4.tcp_congestion_control=bbr
-net.core.default_qdisc=cake
-EOF
+# ------------------------------------------------------------
+# 5. Disable unnecessary services (HTPC focused)
+# ------------------------------------------------------------
+RUN systemctl disable \
+    bluetooth.service \
+    cups.service \
+    ModemManager.service \
+    avahi-daemon.service || true
 
-RUN echo sch_cake > /etc/modules-load.d/cake.conf
+# ------------------------------------------------------------
+# 6. Kernel & VM tuning (HTPC-friendly)
+# ------------------------------------------------------------
+RUN mkdir -p /etc/sysctl.d && \
+    printf '%s\n' \
+    "vm.swappiness=10" \
+    "vm.dirty_ratio=10" \
+    "vm.dirty_background_ratio=5" \
+    "kernel.sched_latency_ns=6000000" \
+    "kernel.sched_min_granularity_ns=750000" \
+    > /etc/sysctl.d/90-htpc.conf
 
-RUN cat > /etc/systemd/zram-generator.conf << 'EOF'
-[zram0]
-zram-size = min(ram / 4, 8192)
-compression-algorithm = zstd
-swap-priority = 100
-EOF
+# ------------------------------------------------------------
+# 7. Filesystem tuning (BTRFS safe)
+# ------------------------------------------------------------
+RUN mkdir -p /etc/systemd/system/systemd-tmpfiles-setup.service.d && \
+    printf '%s\n' \
+    "[Service]" \
+    "ExecStartPost=/usr/bin/btrfs filesystem defragment -r /var/lib || true" \
+    > /etc/systemd/system/systemd-tmpfiles-setup.service.d/htpc-btrfs.conf
 
-# ==============================================================================
-# 3. LACT (QUIET FAN CONTROL)
-# ==============================================================================
-RUN curl -fsSL https://copr.fedorainfracloud.org/coprs/ilyaz/LACT/repo/fedora-$(rpm -E %fedora)/ilyaz-LACT.repo \
-    -o /etc/yum.repos.d/ilyaz-LACT.repo
+# ------------------------------------------------------------
+# 8. Autologin hint (display manager handles final config)
+# ------------------------------------------------------------
+RUN mkdir -p /etc/profile.d && \
+    printf '%s\n' \
+    "export KODI_AE_SINK=PIPEWIRE" \
+    > /etc/profile.d/htpc.sh
 
-RUN rpm-ostree install lact htop nvtop && rm -rf /var/cache/rpms
-
-RUN systemctl mask power-profiles-daemon.service
-
-RUN mkdir -p /etc/systemd/system/lactd.service.d && \
-    cat > /etc/systemd/system/lactd.service.d/override.conf << 'EOF'
-[Unit]
-After=multi-user.target
-Requires=multi-user.target
-EOF
-
-RUN systemctl enable lactd.service
-
-# ==============================================================================
-# 4. NEXTDNS
-# ==============================================================================
-RUN NEXTDNS_URL=$(curl -fsSL https://api.github.com/repos/nextdns/nextdns/releases/latest \
-    | grep browser_download_url | grep linux_amd64.tar.gz | cut -d '"' -f 4) && \
-    curl -fsSL "$NEXTDNS_URL" -o /tmp/nextdns.tar.gz && \
-    tar -xzf /tmp/nextdns.tar.gz -C /usr/bin nextdns && \
-    chmod +x /usr/bin/nextdns && \
-    rm /tmp/nextdns.tar.gz
-
-RUN mkdir -p /etc/nextdns && \
-    cat > /etc/nextdns/config << 'EOF'
-auto-activate true
-cache-size 10MB
-timeout 5s
-EOF
-
-RUN cat > /etc/systemd/system/nextdns.service << 'EOF'
-[Unit]
-Description=NextDNS DoH Proxy
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-ExecStart=/usr/bin/nextdns run -config /etc/nextdns/config
-Restart=on-failure
-RestartSec=5s
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-RUN systemctl enable nextdns.service
-
-# ==============================================================================
-# 5. CLEANUP
-# ==============================================================================
-RUN systemctl mask abrtd.service
-RUN rm -rf /var/cache/rpms /var/cache/dnf
-RUN bootc container lint || true
+# ------------------------------------------------------------
+# 9. Finalize
+# ------------------------------------------------------------
+CMD ["/sbin/init"]
