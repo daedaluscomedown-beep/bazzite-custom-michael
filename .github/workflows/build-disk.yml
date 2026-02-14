@@ -20,8 +20,18 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      # --- CRITICAL ADDITION: Login to Registry ---
-      # The builder needs to PULL your image. If it's private, this is required.
+      # --- DEBUG STEP: Verify iso.toml exists ---
+      - name: Debug File Structure
+        run: |
+          echo "Listing root directory:"
+          ls -la
+          if [ ! -f iso.toml ]; then
+            echo "❌ CRITICAL ERROR: iso.toml NOT FOUND in root!"
+            echo "Did you forget to push it?"
+            exit 1
+          fi
+          echo "✅ iso.toml found."
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -32,22 +42,19 @@ jobs:
       - name: Build ISO with bootc-image-builder
         uses: osbuild/bootc-image-builder-action@v0.0.2
         with:
-          config-file: ./iso.toml
+          config-file: iso.toml  # Removed "./" to be safer, assumes root
           image: ghcr.io/daedaluscomedown-beep/deconfliction:latest
           
-          # --- CRITICAL FIX 1: Set type to ISO ---
-          # Without this, you get a VM disk (qcow2) instead of a USB installer.
-          type: iso
+          # --- FIXED: 'types' (plural) instead of 'type' ---
+          types: iso
           
-          # Keep your existing args
           additional-args: --use-librepo=True
 
       - name: Upload ISO Artifact
         uses: actions/upload-artifact@v4
         with:
           name: bazzite-deconfliction-install.iso
-          
-          # --- CRITICAL FIX 2: Correct Path ---
-          # The builder puts ISOs in 'output/iso/', not 'qcow2'.
-          path: output/iso/install.iso
+          # The action v0.0.2 usually outputs to output/bootiso/install.iso
+          # We use a wildcard (*) to capture it regardless of subfolder.
+          path: output/**/*.iso
           if-no-files-found: error
