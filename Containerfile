@@ -12,37 +12,31 @@ LABEL org.opencontainers.image.authors="Michael O'Neill"
 # ------------------------------------------------------------
 # 1. REPOS (Pinned for Stability)
 # ------------------------------------------------------------
-# Pinning to Fedora 41 (Current Bazzite base) to prevent macro failures
-RUN wget -O /etc/yum.repos.d/lact.repo \
+# Use curl (safer than wget) to fetch the LACT repo
+RUN curl -L -o /etc/yum.repos.d/lact.repo \
     https://copr.fedorainfracloud.org/coprs/iguanadil/lact/repo/fedora-41/iguanadil-lact-fedora-41.repo
 
 # ------------------------------------------------------------
-# 2. PACKAGES (Lean & Mean)
+# 2. PACKAGES (Additions Only)
 # ------------------------------------------------------------
-# We REMOVE power-profiles-daemon and tuned. They add latency.
-# We ADD kernel-tools (for raw cpupower control).
-RUN rpm-ostree override remove \
-    power-profiles-daemon \
-    tuned \
-    tuned-ppd \
-    --install lact \
-    --install gamemode \
-    --install kernel-tools \
-    --install btop \
-    --install nvtop \
-    --install git \
-    --install curl \
-    --install jq \
-    --install distrobox \
+# We do NOT remove power-profiles-daemon here to avoid build failures.
+# We will mask it later (disable it) instead.
+RUN rpm-ostree install \
+    lact \
+    gamemode \
+    kernel-tools \
+    btop \
+    nvtop \
+    git \
+    curl \
+    jq \
+    distrobox \
+    --idempotent \
     && rpm-ostree cleanup -m
 
 # ------------------------------------------------------------
 # 3. KERNEL & SCHEDULER TUNING (5800X3D Specific)
 # ------------------------------------------------------------
-# vm.swappiness=1:        Only swap if absolutely critical (Keep game in RAM)
-# sched_autogroup=0:      Stop kernel from grouping tasks; let GameMode handle priority
-# hung_task_timeout=120:  Prevent RDNA 4 reset on heavy shader compiles
-# dirty_ratio=10:         Write to disk sooner to prevent massive I/O lag spikes
 RUN mkdir -p /etc/sysctl.d && \
     printf '%s\n' \
     "vm.swappiness=1" \
@@ -54,20 +48,20 @@ RUN mkdir -p /etc/sysctl.d && \
     > /etc/sysctl.d/99-gaming-final.conf
 
 # ------------------------------------------------------------
-# 4. FORCE PERFORMANCE GOVERNOR (No Daemons)
+# 4. FORCE PERFORMANCE GOVERNOR (Kill PPD/Tuned)
 # ------------------------------------------------------------
-# Instead of PPD/Tuned, we force the CPU to max frequency at boot.
-# This eliminates the 100-200ms latency of "waking up" a core.
-RUN printf "[Unit]\nDescription=Force CPU Performance Governor\nAfter=multi-user.target\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/cpupower frequency-set -g performance\nExecStart=/usr/bin/cpupower idle-set -D 0\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n" > /etc/systemd/system/force-performance.service
+# 1. Mask the stock power daemons so they don't interfere
+RUN systemctl mask power-profiles-daemon.service \
+    tuned.service \
+    tuned-ppd.service
 
+# 2. Force 'performance' governor at boot using cpupower
+RUN printf "[Unit]\nDescription=Force CPU Performance Governor\nAfter=multi-user.target\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/cpupower frequency-set -g performance\nExecStart=/usr/bin/cpupower idle-set -D 0\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n" > /etc/systemd/system/force-performance.service
 RUN systemctl enable force-performance.service
 
 # ------------------------------------------------------------
 # 5. GE-PROTON (Immutable-Safe Symlink Strategy)
 # ------------------------------------------------------------
-# 1. Create a mutable directory in /var (where we download to)
-# 2. Symlink it to /usr (where Steam looks)
-# 3. Steam sees "ge-proton-latest" and follows the link to the actual files
 RUN mkdir -p /usr/share/steam/compatibilitytools.d && \
     ln -s /var/opt/ge-proton-latest /usr/share/steam/compatibilitytools.d/ge-proton-latest
 
@@ -88,14 +82,12 @@ cd "$TMP_DIR"\n\
 curl -fsSL "$TARBALL_URL" -o ge.tar.gz\n\
 tar -xzf ge.tar.gz\n\
 \n\
-# Nuke old files and sync new ones (rsync-style logic with mv)\n\
+# Sync new files\n\
 rm -rf "$TARGET_DIR"/*\n\
 mv GE-Proton*/* "$TARGET_DIR"/\n\
 \n\
 # Clean up\n\
 rm -rf "$TMP_DIR"\n\
-# Create VDF metadata so Steam recognizes it generically\n\
-# (Optional: The extracted tar usually has this, but this ensures the name matches)\n\
 sed -i "s/GE-Proton.*/ge-proton-latest/" "$TARGET_DIR/compatibilitytool.vdf" || true\n\
 ' > /usr/libexec/update-ge-proton.sh && \
     chmod +x /usr/libexec/update-ge-proton.sh
@@ -106,12 +98,10 @@ RUN printf "[Unit]\nDescription=Daily GE-Proton Update\n\n[Timer]\nOnBootSec=10m
 RUN systemctl enable ge-proton-update.timer
 
 # ------------------------------------------------------------
-# 6. LACT OVERRIDE (The Right Way)
+# 6. LACT OVERRIDE
 # ------------------------------------------------------------
-# No sed. Use drop-in config.
 RUN mkdir -p /etc/systemd/system/lactd.service.d && \
     printf '[Unit]\nAfter=multi-user.target\nRequires=multi-user.target\n' > /etc/systemd/system/lactd.service.d/override.conf
-
 RUN systemctl enable lactd.service
 
 # ------------------------------------------------------------
