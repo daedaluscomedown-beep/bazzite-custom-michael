@@ -1,5 +1,5 @@
 # ============================================================
-# FINAL BOSS V5: BAZZITE 5800X3D + RDNA ULTRA-OPTIMIZED
+# FINAL BOSS V6: BAZZITE 5800X3D + RDNA ULTRA-OPTIMIZED
 # Focus: Deterministic, Immutable-Safe, Zero-Latency
 # ============================================================
 
@@ -10,25 +10,23 @@ LABEL org.opencontainers.image.description="Maximum Performance 5800X3D/RDNA Ima
 LABEL org.opencontainers.image.authors="Michael O'Neill"
 
 # ------------------------------------------------------------
-# 1. REPOS (Manual & Hardcoded - No Variables to Break)
+# 1. REPOS (OFFICIAL SOURCE - FIXED)
 # ------------------------------------------------------------
-# We hardcode 'fedora-40-x86_64' to guarantee a valid URL.
-# This bypasses the shell expansion issues causing the 404s.
-RUN printf '[copr:copr.fedorainfracloud.org:iguanadil:lact]\n\
-name=Copr repo for lact owned by iguanadil\n\
-baseurl=https://download.copr.fedorainfracloud.org/results/iguanadil/lact/fedora-40-x86_64/\n\
+# Switched to 'ilyaz' (Official Developer) and 'fedora-41' (Bazzite Native).
+# We hardcode x86_64 to prevent variable expansion errors.
+RUN printf '[copr:copr.fedorainfracloud.org:ilyaz:LACT]\n\
+name=Copr repo for LACT owned by ilyaz\n\
+baseurl=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/fedora-41-x86_64/\n\
 type=rpm-md\n\
 skip_if_unavailable=True\n\
 gpgcheck=1\n\
-gpgkey=https://download.copr.fedorainfracloud.org/results/iguanadil/lact/pubkey.gpg\n\
+gpgkey=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/pubkey.gpg\n\
 repo_gpgcheck=0\n\
 enabled=1\n' > /etc/yum.repos.d/lact.repo
 
 # ------------------------------------------------------------
-# 2. PACKAGES (Additions Only)
+# 2. PACKAGES
 # ------------------------------------------------------------
-# We install kernel-tools to get the raw 'cpupower' command.
-# We do NOT remove PPD/Tuned yet (we mask them later to be safe).
 RUN rpm-ostree install \
     lact \
     gamemode \
@@ -45,10 +43,6 @@ RUN rpm-ostree install \
 # ------------------------------------------------------------
 # 3. KERNEL & SCHEDULER TUNING (5800X3D Specific)
 # ------------------------------------------------------------
-# vm.swappiness=1:        Force game data to stay in RAM.
-# sched_autogroup=0:      Let GameMode manage priority, not the kernel.
-# hung_task_timeout=120:  Fixes RDNA 4 GPU resets during shader compilation.
-# nmi_watchdog=0:         Disables CPU interrupt watchdog for smoother frametimes.
 RUN mkdir -p /etc/sysctl.d && \
     printf '%s\n' \
     "vm.swappiness=1" \
@@ -60,22 +54,20 @@ RUN mkdir -p /etc/sysctl.d && \
     > /etc/sysctl.d/99-gaming-final.conf
 
 # ------------------------------------------------------------
-# 4. FORCE PERFORMANCE GOVERNOR (The "No Concessions" Fix)
+# 4. FORCE PERFORMANCE GOVERNOR
 # ------------------------------------------------------------
-# 1. Mask the stock power daemons so they are dead on arrival.
+# 1. Mask the stock power daemons
 RUN systemctl mask power-profiles-daemon.service \
     tuned.service \
     tuned-ppd.service
 
-# 2. Create a service that forces the CPU to MAX FREQUENCY at boot.
-# This eliminates the "ramp up" latency that causes micro-stutter.
+# 2. Force 'performance' governor at boot
 RUN printf "[Unit]\nDescription=Force CPU Performance Governor\nAfter=multi-user.target\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/cpupower frequency-set -g performance\nExecStart=/usr/bin/cpupower idle-set -D 0\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n" > /etc/systemd/system/force-performance.service
 RUN systemctl enable force-performance.service
 
 # ------------------------------------------------------------
-# 5. GE-PROTON (Immutable-Safe Symlink Strategy)
+# 5. GE-PROTON (Immutable-Safe)
 # ------------------------------------------------------------
-# We link the immutable Steam folder to a mutable /var folder.
 RUN mkdir -p /usr/share/steam/compatibilitytools.d && \
     ln -s /var/opt/ge-proton-latest /usr/share/steam/compatibilitytools.d/ge-proton-latest
 
@@ -112,9 +104,8 @@ RUN printf "[Unit]\nDescription=Daily GE-Proton Update\n\n[Timer]\nOnBootSec=10m
 RUN systemctl enable ge-proton-update.timer
 
 # ------------------------------------------------------------
-# 6. LACT OVERRIDE (RDNA 4 Fan Control)
+# 6. LACT OVERRIDE
 # ------------------------------------------------------------
-# Ensures LACT starts after the OS is fully initialized to avoid race conditions.
 RUN mkdir -p /etc/systemd/system/lactd.service.d && \
     printf '[Unit]\nAfter=multi-user.target\nRequires=multi-user.target\n' > /etc/systemd/system/lactd.service.d/override.conf
 RUN systemctl enable lactd.service
