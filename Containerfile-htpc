@@ -10,9 +10,8 @@ LABEL org.opencontainers.image.description="Maximum Performance HTPC Image"
 LABEL org.opencontainers.image.authors="Michael O'Neill"
 
 # ------------------------------------------------------------
-# 1. REPOS: LACT + RPM FUSION (Metalink Fixed)
+# 1. LACT REPO (Official - Proven Working)
 # ------------------------------------------------------------
-# LACT Repo (Official ilyaz / Fedora 41)
 RUN printf '[copr:copr.fedorainfracloud.org:ilyaz:LACT]\n\
 name=Copr repo for LACT owned by ilyaz\n\
 baseurl=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/fedora-41-x86_64/\n\
@@ -23,29 +22,21 @@ gpgkey=https://download.copr.fedorainfracloud.org/results/ilyaz/LACT/pubkey.gpg\
 repo_gpgcheck=0\n\
 enabled=1\n' > /etc/yum.repos.d/lact.repo
 
-# RPM FUSION FREE (Metalink - Bulletproof)
-RUN printf '[rpmfusion-free]\n\
-name=RPM Fusion for Fedora 41 - Free\n\
-metalink=https://mirrors.rpmfusion.org/metalink?repo=free-fedora-41&arch=x86_64\n\
-type=rpm-md\n\
-skip_if_unavailable=True\n\
-gpgcheck=0\n\
-enabled=1\n' > /etc/yum.repos.d/rpmfusion-free.repo
-
-# RPM FUSION NON-FREE (Metalink - Bulletproof)
-RUN printf '[rpmfusion-nonfree]\n\
-name=RPM Fusion for Fedora 41 - Nonfree\n\
-metalink=https://mirrors.rpmfusion.org/metalink?repo=nonfree-fedora-41&arch=x86_64\n\
-type=rpm-md\n\
-skip_if_unavailable=True\n\
-gpgcheck=0\n\
-enabled=1\n' > /etc/yum.repos.d/rpmfusion-nonfree.repo
+# ------------------------------------------------------------
+# 2. INSTALL RPM FUSION REPOS (The Native Fix)
+# ------------------------------------------------------------
+# We install the release RPMs directly. This automatically sets up 
+# the repo files and GPG keys correctly, avoiding syntax errors.
+RUN rpm-ostree install \
+    https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-41.noarch.rpm \
+    https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-41.noarch.rpm \
+    --idempotent && \
+    rpm-ostree cleanup -m
 
 # ------------------------------------------------------------
-# 2. PACKAGES (Gaming + HTPC Tools)
+# 3. INSTALL PACKAGES (Gaming + Media)
 # ------------------------------------------------------------
-# Added: kodi, vlc, mpv. 
-# We use --idempotent to handle re-runs cleanly.
+# Now that RPM Fusion is installed (above), we can pull Kodi/VLC.
 RUN rpm-ostree install \
     lact \
     gamemode \
@@ -63,7 +54,7 @@ RUN rpm-ostree install \
     && rpm-ostree cleanup -m
 
 # ------------------------------------------------------------
-# 3. KERNEL & SCHEDULER TUNING (5800X3D Specific)
+# 4. KERNEL & SCHEDULER TUNING (5800X3D Specific)
 # ------------------------------------------------------------
 RUN mkdir -p /etc/sysctl.d && \
     printf '%s\n' \
@@ -76,7 +67,7 @@ RUN mkdir -p /etc/sysctl.d && \
     > /etc/sysctl.d/99-gaming-final.conf
 
 # ------------------------------------------------------------
-# 4. FORCE PERFORMANCE GOVERNOR
+# 5. FORCE PERFORMANCE GOVERNOR
 # ------------------------------------------------------------
 RUN systemctl mask power-profiles-daemon.service \
     tuned.service \
@@ -86,7 +77,7 @@ RUN printf "[Unit]\nDescription=Force CPU Performance Governor\nAfter=multi-user
 RUN systemctl enable force-performance.service
 
 # ------------------------------------------------------------
-# 5. GE-PROTON (Immutable-Safe)
+# 6. GE-PROTON (Immutable-Safe)
 # ------------------------------------------------------------
 RUN mkdir -p /usr/share/steam/compatibilitytools.d && \
     ln -s /var/opt/ge-proton-latest /usr/share/steam/compatibilitytools.d/ge-proton-latest
@@ -124,14 +115,14 @@ RUN printf "[Unit]\nDescription=Daily GE-Proton Update\n\n[Timer]\nOnBootSec=10m
 RUN systemctl enable ge-proton-update.timer
 
 # ------------------------------------------------------------
-# 6. LACT OVERRIDE
+# 7. LACT OVERRIDE
 # ------------------------------------------------------------
 RUN mkdir -p /etc/systemd/system/lactd.service.d && \
     printf '[Unit]\nAfter=multi-user.target\nRequires=multi-user.target\n' > /etc/systemd/system/lactd.service.d/override.conf
 RUN systemctl enable lactd.service
 
 # ------------------------------------------------------------
-# 7. FINAL CLEANUP
+# 8. FINAL CLEANUP
 # ------------------------------------------------------------
 RUN systemctl mask abrtd.service
 
