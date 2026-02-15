@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - 'build-disk.yml'
-      - 'disk_config/iso.toml' # <--- UPDATED PATH TRIGGER
+      - 'disk_config/iso.toml'
 
 jobs:
   build-iso:
@@ -30,8 +30,9 @@ jobs:
       - name: Build ISO with bootc-image-builder
         uses: osbuild/bootc-image-builder-action@v0.0.2
         with:
-          # --- CRITICAL FIX: Point to the correct folder ---
-          config-file: disk_config/iso.toml
+          # --- CRITICAL FIX: Add "./" prefix ---
+          # This tells Podman "This is a file path", not a volume name.
+          config-file: ./disk_config/iso.toml
           
           image: ghcr.io/daedaluscomedown-beep/deconfliction:latest
           types: iso
