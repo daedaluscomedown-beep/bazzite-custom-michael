@@ -6,52 +6,7 @@ on:
       - main
     paths:
       - 'build-disk.yml'
-      - 'disk_config/iso.toml' # Updated path trigger
-
-jobs:
-  build-iso:
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-
-    steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build ISO with bootc-image-builder
-        uses: osbuild/bootc-image-builder-action@v0.0.2
-        with:
-          # --- CRITICAL FIX: Point to the correct folder ---
-          config-file: disk_config/iso.toml
-          
-          image: ghcr.io/daedaluscomedown-beep/deconfliction:latest
-          types: iso
-          additional-args: --use-librepo=True
-
-      - name: Upload ISO Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bazzite-deconfliction-install.iso
-          path: output/bootiso/*.iso
-          if-no-files-found: error
-name: Build ISO
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'build-disk.yml'
-      - 'disk_config/iso.toml' # Updated path trigger
+      - 'disk_config/iso.toml' # <--- UPDATED PATH TRIGGER
 
 jobs:
   build-iso:
