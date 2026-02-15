@@ -39,7 +39,7 @@ jobs:
           additional-args: --use-librepo=True
 
       - name: Upload ISO Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bazzite-deconfliction-install.iso
           path: output/bootiso/*.iso
